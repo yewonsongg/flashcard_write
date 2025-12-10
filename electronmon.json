@@ -1,0 +1,7 @@
+{
+  "patterns": [
+    "build/**/*.js"
+  ],
+  "ignore": [],
+  "delay": 2000
+}
