@@ -1,7 +1,9 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import { createLogger } from '../shared/logger.js';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getDatabaseFilePath, loadDatabase, saveDatabase } from './storage.js';
+import type { Database } from '../shared/flashcards/types.js';
 
 const log = createLogger({ context: 'main' });
 
@@ -36,8 +38,33 @@ async function createWindow() {
   });
 }
 
+function registerIpcHandlers() {
+  ipcMain.handle('flashcards:load', async () => {
+    try {
+      return await loadDatabase();
+    } catch (error) {
+      log.error('Failed to load flashcard database', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('flashcards:save', async (_event, database: Database) => {
+    try {
+      await saveDatabase(database);
+      return { status: 'ok' as const };
+    } catch (error) {
+      log.error('Failed to save flashcard database', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('flashcards:path', () => getDatabaseFilePath());
+}
+
 app.whenReady()
   .then(async () => {
+    await loadDatabase(); // ensure the file exists before the renderer asks for it
+    registerIpcHandlers();
     await createWindow();
   });
 

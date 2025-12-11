@@ -9,6 +9,12 @@ export interface Deck {
   lastOpenedAt: string;   // for "last opened" sort
 }
 
+export interface DeckTab {
+  id: string;
+  deck: Deck;
+  isPreview?: boolean;
+}
+
 export interface Card {
   id: string;
   front: string;

@@ -6,7 +6,9 @@ import { DeckContextMenuItem } from '@/components/custom/deck-context-menu-item'
 import { AlertDialog, AlertDialogHeader, AlertDialogContent, AlertDialogDescription, AlertDialogTitle, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
-import type { Deck, Card, Database, SortMode, SortOrder } from '@/shared/flashcards/types';
+import { DEFAULT_DATABASE } from '@/shared/flashcards/defaultData';
+import type { Deck, Database, SortMode, SortOrder } from '@/shared/flashcards/types';
+import { useDeckTabsStore } from '@/renderer/features/decks/useDeckTabsStore';
 
 type SidebarBodyProps = {
   isCollapsed: boolean;
@@ -82,99 +84,15 @@ function sortDecks(
 }
 
 export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyProps) {
-  const mockDB: Database = {
-    decks: {
-      deck_1: {
-        id: "deck_1",
-        name: "French",
-        cardIds: ["card_1", "card_2"],
-        pinned: false,
-        createdAt: "2025-01-01T12:00:00.000Z",
-        updatedAt: "2025-01-02T12:00:00.000Z",
-        lastOpenedAt: "2025-01-03T12:00:00.000Z"
-      },
-      deck_2: {
-        id: "deck_2",
-        name: "Biology",
-        cardIds: [],
-        pinned: false,
-        createdAt: "2025-01-04T12:00:00.000Z",
-        updatedAt: "2025-01-04T12:00:00.000Z",
-        lastOpenedAt: "2025-01-04T12:00:00.000Z"
-      },
-      deck_3: {
-        id: "deck_3",
-        name: "Korean",
-        cardIds: [],
-        pinned: false,
-        createdAt: "2025-01-05T12:00:00.000Z",
-        updatedAt: "2025-01-05T12:00:00.000Z",
-        lastOpenedAt: "2025-01-05T12:00:00.000Z"
-      },
-      deck_4: {
-        id: "deck_4",
-        name: "Neuroscience",
-        cardIds: [],
-        pinned: false,
-        createdAt: "2025-01-06T12:00:00.000Z",
-        updatedAt: "2025-01-06T12:00:00.000Z",
-        lastOpenedAt: "2025-01-06T12:00:00.000Z"
-      },
-      deck_5: {
-        id: "deck_5",
-        name: "Chemistry",
-        cardIds: [],
-        pinned: false,
-        createdAt: "2025-01-07T12:00:00.000Z",
-        updatedAt: "2025-01-07T12:00:00.000Z",
-        lastOpenedAt: "2025-01-07T12:00:00.000Z"
-      },
-      deck_6: {
-        id: "deck_6",
-        name: "Calculus",
-        cardIds: [],
-        pinned: false,
-        createdAt: "2025-01-08T12:00:00.000Z",
-        updatedAt: "2025-01-08T12:00:00.000Z",
-        lastOpenedAt: "2025-01-08T12:00:00.000Z"
-      },
-      deck_7: {
-        id: "deck_7",
-        name: "6 7",
-        cardIds: [],
-        pinned: false,
-        createdAt: "2025-01-09T12:00:00.000Z",
-        updatedAt: "2025-01-09T12:00:00.000Z",
-        lastOpenedAt: "2025-01-09T12:00:00.000Z"
-      },
-      deck_8: {
-        id: "deck_8",
-        name: "Skibidi",
-        cardIds: [],
-        pinned: false,
-        createdAt: "2025-01-10T12:00:00.000Z",
-        updatedAt: "2025-01-10T12:00:00.000Z",
-        lastOpenedAt: "2025-01-10T12:00:00.000Z"
-      }
-    },
-    cards: {
-      card_1: {
-        id: "card_1",
-        front: "bonjour",
-        back: "hello"
-      },
-      card_2: {
-        id: "card_2",
-        front: "au revoir",
-        back: "goodbye"
-      }
-    }
-  };
+  const [database, setDatabase] = useState<Database | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const deckList = Object.values(mockDB.decks);
+  const deckList = useMemo(
+    () => Object.values(database?.decks ?? {}),
+    [database]
+  );
   const viewportRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
   const [hasOverflow, setHasOverflow] = useState(false);
-  const [activeDeck, setActiveDeck] = useState<string>('');
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deckToDelete, setDeckToDelete] = useState<Deck | null>(null);
@@ -183,6 +101,90 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
     () => sortDecks(deckList, sortMode, sortOrder),
     [deckList, sortMode, sortOrder]
   );
+
+  const openDeckInTab = useDeckTabsStore((state) => state.openDeckInTab);
+  const activeTabId = useDeckTabsStore((state) => state.activeTabId);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDatabaseFromDisk = async () => {
+      try {
+        if (!window.flashcards) {
+          setLoadError('Flashcards preload API is not available. Showing defaults.');
+          setDatabase(DEFAULT_DATABASE);
+          return;
+        }
+
+        const db = await window.flashcards.loadDatabase();
+        if (!cancelled) {
+          setDatabase(db);
+        }
+      } catch (error) {
+        console.error('Failed to load flashcard database', error);
+        if (!cancelled) {
+          setLoadError('Unable to load decks from disk. Showing defaults.');
+          setDatabase(DEFAULT_DATABASE);
+        }
+      }
+    };
+
+    loadDatabaseFromDisk();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleDeleteDeck = async () => {
+    if (!deckToDelete || !database) return;
+
+    const previousDatabase = database;
+    const deckName = deckToDelete.name;
+    const cardCount = deckToDelete.cardIds.length;
+
+    const updated: Database = {
+      decks: { ...database.decks },
+      cards: { ...database.cards },
+    };
+
+    delete updated.decks[deckToDelete.id];
+    deckToDelete.cardIds.forEach((cardId) => {
+      delete updated.cards[cardId];
+    });
+
+    setDatabase(updated);
+    setDeleteOpen(false);
+    setDeckToDelete(null);
+
+    try {
+      await window.flashcards?.saveDatabase(updated);
+    } catch (error) {
+      console.error('Failed to save flashcard database after deleting deck', error);
+      toast('Save failed', {
+        description: 'Could not persist deck deletion to disk.',
+      });
+      return;
+    }
+
+    toast('Delete Deck', {
+      description: `Deck "${deckName}" (${cardCount} cards) has been deleted.`,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setDatabase(previousDatabase);
+          window.flashcards?.saveDatabase(previousDatabase);
+        },
+      },
+      unstyled: true,
+      classNames: {
+        toast: 'bg-background border border-border rounded-lg shadow-lg p-2 flex items-center gap-2 min-w-[356px]',
+        title: 'text-foreground font-semibold text-sm',
+        description: 'text-muted-foreground text-xs mt-0.5',
+        actionButton: 'ml-auto bg-primary text-primary-foreground px-3 py-2 rounded-md text-sm font-medium hover:bg-primary/80 transition-colors duration-200 shrink-0',
+      },
+    });
+  };
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -223,6 +225,11 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   return (
     <ScrollArea viewportRef={viewportRef} className='min-w-0 w-full min-h-0 flex-1 flex flex-col overflow-y-auto'>
       <div className={`flex flex-col h-max ${hasOverflow ? 'pr-3' : 'pr-0'}`}>
+        {loadError && (
+          <div className='px-4 py-2 text-xs text-muted-foreground'>
+            {loadError}
+          </div>
+        )}
         {sortedDecks.map((deck, index) => (
           <Fragment key={deck.id}>
             <ContextMenu>
@@ -230,23 +237,23 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
               <ContextMenuTrigger asChild>
                 <div 
                   className='group flex flex-col cursor-pointer'
-                  onClick={() => setActiveDeck(deck.id)}
+                  onClick={() => openDeckInTab(deck)}
                 >
                   <div 
                     className={`
                       h-12 flex flex-col px-4 transition-shadow duration-200 hover:shadow-[0_4px_20px_rgba(0,0,0,0.18),0_-2px_10px_rgba(0,0,0,0.10),3px_0_10px_rgba(0,0,0,0.12)]
-                      ${deck.id === activeDeck ? 'bg-accent/5' : ''}
+                      ${deck.id === activeTabId ? 'bg-accent/5' : ''}
                     `}
                   >
                     <div className={`
                       h-6 leading-none flex items-end font-medium group-hover:text-accent-foreground transition-colors duration-200
-                      ${deck.id === activeDeck ? 'text-accent-foreground' : 'text-foreground'}  
+                      ${deck.id === activeTabId ? 'text-accent-foreground' : 'text-foreground'}  
                     `}>
                       {deck.name}
                     </div>
                     <div className={`
                       h-6 flex pt-1 leading-none items-start text-xs font-normal
-                      ${deck.id === activeDeck ? 'text-accent-foreground' : 'text-foreground'}  
+                      ${deck.id === activeTabId ? 'text-accent-foreground' : 'text-foreground'}  
                     `}>
                       <div className=''>
                         {deck.cardIds.length} cards
@@ -308,25 +315,7 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                //TODO perform delete(deckToDelete)
-                setDeleteOpen(false);
-                setDeckToDelete(null);
-                toast('Delete Deck', {
-                  description: `Deck "${deckToDelete?.name}" (${deckToDelete?.cardIds.length} cards) has been deleted.`,
-                  action: {
-                    label: 'Undo',
-                    onClick: () => console.log('Undo'),
-                  },
-                  unstyled: true,
-                  classNames: {
-                    toast: 'bg-background border border-border rounded-lg shadow-lg p-2 flex items-center gap-2 min-w-[356px]',
-                    title: 'text-foreground font-semibold text-sm',
-                    description: 'text-muted-foreground text-xs mt-0.5',
-                    actionButton: 'ml-auto bg-primary text-primary-foreground px-3 py-2 rounded-md text-sm font-medium hover:bg-primary/80 transition-colors duration-200 shrink-0',
-                  },
-                })
-              }}
+              onClick={handleDeleteDeck}
             >
               Continue
             </AlertDialogAction>
