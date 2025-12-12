@@ -2,20 +2,27 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { Trash2, CirclePlay, Plus, CirclePlus } from 'lucide-react';
 
 import type { Deck, DeckCard } from "@/shared/flashcards/types"
 import { DeckCardsPane } from './DeckCardsPane';
 import { useDeckTabsStore } from "./useDeckTabsStore";
+import { useDeckStore } from "./useDeckStore";
 
 export function DeckView({ deck }: { deck: Deck }) {
   const viewportRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
   const [cards, setCards] = useState<DeckCard[]>([]);
   const [lastAddedCardId, setLastAddedCardId] = useState<string | null>(null);
   const [title, setTitle] = useState<string>(deck.name);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const refreshDeckInTabs = useDeckTabsStore((state) => state.refreshDeck);
+  const closeTab = useDeckTabsStore((state) => state.closeTab);
+  const deleteDeck = useDeckStore((state) => state.deleteDeck);
+  const restoreDatabase = useDeckStore((state) => state.restoreDatabase);
   const persistTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
 
@@ -63,7 +70,6 @@ export function DeckView({ deck }: { deck: Deck }) {
       console.error('Failed to save cards for deck', error);
     }
   };
-
   const persistDeckTitle = async (nextTitle: string) => {
     if (!window.flashcards) return;
 
@@ -127,11 +133,9 @@ export function DeckView({ deck }: { deck: Deck }) {
       cancelled = true;
     };
   }, [deck.id]);
-
   useEffect(() => {
     setTitle(deck.name);
   }, [deck.id, deck.name]);
-  
   const updateCardField = (id: string, field: 'front' | 'back', value: string, { persist }: { persist?: boolean } = {}) => {
     setCards((prev) => {
       const updated = prev.map((card) =>
@@ -189,11 +193,9 @@ export function DeckView({ deck }: { deck: Deck }) {
     // Set the new card ID in next tick to ensure state change is detected
     setTimeout(() => setLastAddedCardId(nextId), 0);
   };
-
   const handleTitleChange = (value: string) => {
     setTitle(value);
   };
-
   const handleTitleBlur = () => {
     const nextTitle = title.trim();
     if (!nextTitle || nextTitle === deck.name) {
@@ -202,7 +204,6 @@ export function DeckView({ deck }: { deck: Deck }) {
     }
     persistDeckTitle(nextTitle);
   };
-
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -211,6 +212,34 @@ export function DeckView({ deck }: { deck: Deck }) {
     }
   };
 
+  const handleDeleteDeck = async () => {
+    try {
+      const result = await deleteDeck(deck.id);
+      if (result) {
+        closeTab(deck.id);
+        toast('Delete Deck', {
+          description: `Deck "${result.deckName}" (${result.cardCount} cards) has been deleted.`,
+          action: {
+            label: 'Undo',
+            onClick: () => restoreDatabase(result.previous),
+          },
+          unstyled: true,
+          classNames: {
+            toast: 'bg-background border border-border rounded-lg shadow-lg p-2 flex items-center gap-2 min-w-[356px]',
+            title: 'text-foreground font-semibold text-sm',
+            description: 'text-muted-foreground text-xs mt-0.5',
+            actionButton: 'ml-auto bg-primary text-primary-foreground px-3 py-2 rounded-md text-sm font-medium hover:bg-primary/80 transition-colors duration-200 shrink-0',
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Failed to delete deck from DeckView', error);
+      toast('Save failed', {
+        description: 'Could not persist deck deletion to disk.',
+      });
+    }
+    setDeleteOpen(false);
+  };
   useEffect(() => {
     if (!lastAddedCardId) return;
     const viewport = viewportRef.current;
@@ -245,7 +274,7 @@ export function DeckView({ deck }: { deck: Deck }) {
               onBlur={handleTitleBlur}
               onKeyDown={handleTitleKeyDown}
               placeholder={deck.name} 
-              className='placeholder:font-semibold placeholder:text-accent-foreground'
+              className='font-semibold placeholder:font-semibold placeholder:text-accent-foreground'
             />
             <InputGroupAddon align='block-start' className=''>
               <Label htmlFor='title' className='font-semibold text-foreground'>
@@ -271,7 +300,7 @@ export function DeckView({ deck }: { deck: Deck }) {
               <CirclePlus className='h-5 w-5' strokeWidth={1.5} />
             </Button>
             <button
-              onClick={() => console.log('Clicked delete Deck')} 
+              onClick={() => setDeleteOpen(true)} 
               className='flex items-center justify-center rounded-full hover:bg-accent/10 hover:text-zinc-800 h-9 w-9'
             >
               <Trash2 className='h-6 w-6' strokeWidth={1.5} />
@@ -287,6 +316,22 @@ export function DeckView({ deck }: { deck: Deck }) {
           onAddCard={handleAddCard}
         />
       </div>
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this deck and all of its cards from your files.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteDeck}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ScrollArea>
   )
 }

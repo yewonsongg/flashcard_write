@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { Fragment, useEffect, useRef, useState, useMemo } from 'react';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent } from '@/components/ui/context-menu';
@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { DEFAULT_DATABASE } from '@/shared/flashcards/defaultData';
 import type { Deck, Database, SortMode, SortOrder } from '@/shared/flashcards/types';
 import { useDeckTabsStore } from '@/renderer/features/decks/useDeckTabsStore';
+import { useDeckStore } from '@/renderer/features/decks/useDeckStore';
 
 type SidebarBodyProps = {
   isCollapsed: boolean;
@@ -84,10 +85,14 @@ function sortDecks(
 }
 
 export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyProps) {
-  const [database, setDatabase] = useState<Database | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
   const [hasOverflow, setHasOverflow] = useState(false);
+
+  const database = useDeckStore((state) => state.database);
+  const loadError = useDeckStore((state) => state.loadError);
+  const loadDatabaseFromDisk = useDeckStore((state) => state.loadDatabase);
+  const deleteDeck = useDeckStore((state) => state.deleteDeck);
+  const restoreDatabase = useDeckStore((state) => state.restoreDatabase);
 
   const deckList = useMemo(
     () => Object.values(database?.decks ?? {}),
@@ -104,23 +109,7 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
 
   const openDeckInTab = useDeckTabsStore((state) => state.openDeckInTab);
   const activeTabId = useDeckTabsStore((state) => state.activeTabId);
-
-  const loadDatabaseFromDisk = useCallback(async () => {
-    try {
-      if (!window.flashcards) {
-        setLoadError('Flashcards preload API is not available. Showing defaults.');
-        setDatabase(DEFAULT_DATABASE);
-        return;
-      }
-
-      const db = await window.flashcards.loadDatabase();
-      setDatabase(db);
-    } catch (error) {
-      console.error('Failed to load flashcard database', error);
-      setLoadError('Unable to load decks from disk. Showing defaults.');
-      setDatabase(DEFAULT_DATABASE);
-    }
-  }, []);
+  const closeTab = useDeckTabsStore((state) => state.closeTab);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,53 +135,41 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   }, [loadDatabaseFromDisk]);
 
   const handleDeleteDeck = async () => {
-    if (!deckToDelete || !database) return;
-
-    const previousDatabase = database;
-    const deckName = deckToDelete.name;
-    const cardCount = deckToDelete.cardIds.length;
-
-    const updated: Database = {
-      decks: { ...database.decks },
-      cards: { ...database.cards },
-    };
-
-    delete updated.decks[deckToDelete.id];
-    deckToDelete.cardIds.forEach((cardId) => {
-      delete updated.cards[cardId];
-    });
-
-    setDatabase(updated);
-    setDeleteOpen(false);
-    setDeckToDelete(null);
+    if (!deckToDelete) return;
 
     try {
-      await window.flashcards?.saveDatabase(updated);
+      const result = await deleteDeck(deckToDelete.id);
+      setDeleteOpen(false);
+      setDeckToDelete(null);
+
+      if (!result) {
+        return;
+      }
+
+      const { deckName, cardCount, previous } = result;
+      closeTab(deckToDelete.id);
+
+      toast('Delete Deck', {
+        description: `Deck "${deckName}" (${cardCount} cards) has been deleted.`,
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            restoreDatabase(previous);
+          },
+        },
+        unstyled: true,
+        classNames: {
+          toast: 'bg-background border border-border rounded-lg shadow-lg p-2 flex items-center gap-2 min-w-[356px]',
+          title: 'text-foreground font-semibold text-sm',
+          description: 'text-muted-foreground text-xs mt-0.5',
+          actionButton: 'ml-auto bg-primary text-primary-foreground px-3 py-2 rounded-md text-sm font-medium hover:bg-primary/80 transition-colors duration-200 shrink-0',
+        },
+      });
     } catch (error) {
-      console.error('Failed to save flashcard database after deleting deck', error);
       toast('Save failed', {
         description: 'Could not persist deck deletion to disk.',
       });
-      return;
     }
-
-    toast('Delete Deck', {
-      description: `Deck "${deckName}" (${cardCount} cards) has been deleted.`,
-      action: {
-        label: 'Undo',
-        onClick: () => {
-          setDatabase(previousDatabase);
-          window.flashcards?.saveDatabase(previousDatabase);
-        },
-      },
-      unstyled: true,
-      classNames: {
-        toast: 'bg-background border border-border rounded-lg shadow-lg p-2 flex items-center gap-2 min-w-[356px]',
-        title: 'text-foreground font-semibold text-sm',
-        description: 'text-muted-foreground text-xs mt-0.5',
-        actionButton: 'ml-auto bg-primary text-primary-foreground px-3 py-2 rounded-md text-sm font-medium hover:bg-primary/80 transition-colors duration-200 shrink-0',
-      },
-    });
   };
 
   useEffect(() => {
