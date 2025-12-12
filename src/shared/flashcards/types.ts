@@ -15,7 +15,7 @@ export interface DeckTab {
   isPreview?: boolean;
 }
 
-export interface Card {
+export interface DeckCard {
   id: string;
   front: string;
   back: string;
@@ -23,7 +23,7 @@ export interface Card {
 
 export interface Database {
   decks: Record<string, Deck>;
-  cards: Record<string, Card>;
+  cards: Record<string, DeckCard>;
 }
 
 export type SortMode = 'name' | 'cardCount' | 'lastOpened' | 'lastModified';

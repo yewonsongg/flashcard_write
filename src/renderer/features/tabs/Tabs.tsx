@@ -19,8 +19,8 @@ export function TabsTriggers() {
   }
 
   return (
-    <div className='flex items-center w-full gap-2'>
-      <TabsList className='inline-flex h-8 min-h-0 flex-1 min-w-0 gap-1 overflow-x-auto'>
+    <div className='flex items-center h-full w-full gap-2'>
+      <TabsList className='inline-flex h-8 min-h-0 flex-1 min-w-0 gap-1 overflow-x-auto self-end'>
         {tabs.map((tab) => (
           <TabsTrigger 
             key={tab.id}
