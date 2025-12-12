@@ -1,4 +1,4 @@
-import { Tabs, TabsTrigger, TabsList, TabsContent } from "@radix-ui/react-tabs";
+import { TabsTrigger, TabsList, TabsContent } from "@radix-ui/react-tabs";
 import { X } from "lucide-react";
 import { useDeckTabsStore } from "../decks/useDeckTabsStore";
 import { DeckView } from "../decks/DeckView";

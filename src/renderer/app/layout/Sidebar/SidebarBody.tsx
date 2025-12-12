@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, useMemo } from 'react';
+import { Fragment, useEffect, useRef, useState, useMemo, useCallback } from 'react';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent } from '@/components/ui/context-menu';
@@ -86,13 +86,13 @@ function sortDecks(
 export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyProps) {
   const [database, setDatabase] = useState<Database | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
+  const [hasOverflow, setHasOverflow] = useState(false);
 
   const deckList = useMemo(
     () => Object.values(database?.decks ?? {}),
     [database]
   );
-  const viewportRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
-  const [hasOverflow, setHasOverflow] = useState(false);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deckToDelete, setDeckToDelete] = useState<Deck | null>(null);
@@ -105,36 +105,45 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   const openDeckInTab = useDeckTabsStore((state) => state.openDeckInTab);
   const activeTabId = useDeckTabsStore((state) => state.activeTabId);
 
+  const loadDatabaseFromDisk = useCallback(async () => {
+    try {
+      if (!window.flashcards) {
+        setLoadError('Flashcards preload API is not available. Showing defaults.');
+        setDatabase(DEFAULT_DATABASE);
+        return;
+      }
+
+      const db = await window.flashcards.loadDatabase();
+      setDatabase(db);
+    } catch (error) {
+      console.error('Failed to load flashcard database', error);
+      setLoadError('Unable to load decks from disk. Showing defaults.');
+      setDatabase(DEFAULT_DATABASE);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
-    const loadDatabaseFromDisk = async () => {
-      try {
-        if (!window.flashcards) {
-          setLoadError('Flashcards preload API is not available. Showing defaults.');
-          setDatabase(DEFAULT_DATABASE);
-          return;
-        }
-
-        const db = await window.flashcards.loadDatabase();
-        if (!cancelled) {
-          setDatabase(db);
-        }
-      } catch (error) {
-        console.error('Failed to load flashcard database', error);
-        if (!cancelled) {
-          setLoadError('Unable to load decks from disk. Showing defaults.');
-          setDatabase(DEFAULT_DATABASE);
-        }
-      }
+    const load = async () => {
+      await loadDatabaseFromDisk();
+      if (cancelled) return;
     };
 
-    loadDatabaseFromDisk();
+    load();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadDatabaseFromDisk]);
+
+  useEffect(() => {
+    const handler = () => {
+      loadDatabaseFromDisk();
+    };
+    window.addEventListener('flashcards:database-updated', handler);
+    return () => window.removeEventListener('flashcards:database-updated', handler);
+  }, [loadDatabaseFromDisk]);
 
   const handleDeleteDeck = async () => {
     if (!deckToDelete || !database) return;

@@ -10,6 +10,7 @@ interface DeckTabsState {
   closeTab: (id: string) => void;
   closeOtherTabs: (id: string) => void;
   closeAllTabs: () => void;
+  refreshDeck: (deck: Deck) => void;
 }
 
 export const useDeckTabsStore = create<DeckTabsState>((set, get) => ({
@@ -70,5 +71,11 @@ export const useDeckTabsStore = create<DeckTabsState>((set, get) => ({
       tabs: [],
       activeTabId: null,
     })
+  },
+
+  refreshDeck: (deck) => {
+    set((state) => ({
+      tabs: state.tabs.map((t) => t.id === deck.id ? { ...t, deck } : t),
+    }));
   }
 }))
