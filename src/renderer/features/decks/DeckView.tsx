@@ -12,6 +12,7 @@ import type { Deck, DeckCard } from "@/shared/flashcards/types"
 import { DeckCardsPane } from './DeckCardsPane';
 import { useDeckTabsStore } from "./useDeckTabsStore";
 import { useDeckStore } from "./useDeckStore";
+import { DeckDeleteButton } from '@/renderer/shared-ui/DeckDeleteButton';
 
 export function DeckView({ deck }: { deck: Deck }) {
   const viewportRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
@@ -299,12 +300,9 @@ export function DeckView({ deck }: { deck: Deck }) {
               New Card
               <CirclePlus className='h-5 w-5' strokeWidth={1.5} />
             </Button>
-            <button
-              onClick={() => setDeleteOpen(true)} 
-              className='flex items-center justify-center rounded-full hover:bg-accent/10 hover:text-zinc-800 h-9 w-9'
-            >
-              <Trash2 className='h-6 w-6' strokeWidth={1.5} />
-            </button>
+            <DeckDeleteButton 
+              setDeleteOpen={setDeleteOpen}
+            />
           </div>
         </div>
         <DeckCardsPane 

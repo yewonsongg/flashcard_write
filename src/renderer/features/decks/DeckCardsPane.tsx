@@ -1,8 +1,9 @@
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
 import { useEffect, useRef } from "react";
+
+import { CardDeleteButton } from "@/renderer/shared-ui/CardDeleteButton";
 
 import type { DeckCard } from "@/shared/flashcards/types";
 
@@ -52,12 +53,10 @@ export function DeckCardsPane({
             <span className="text-xs font-medium text-muted-foreground">
               Card {index + 1}
             </span>
-            <button
-              onClick={() => onDeleteCard(card.id)} 
-              className='flex items-center justify-center rounded-full hover:bg-accent/10 hover:text-zinc-800 h-5 w-5'
-            >
-              <Trash2 className='h-3.5 w-3.5' strokeWidth={2} />
-            </button>
+            <CardDeleteButton
+              cardId={card.id}
+              onDeleteCard={onDeleteCard}
+            />
           </CardHeader>
           <CardContent className='px-3 pb-3 w-full flex flex-row items-center justify-between gap-2'>
             <div className='flex flex-1 min-w-0 flex-col gap-1'>
