@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useRef, useState, useMemo } from 'react';
+import { cn } from '@/lib/utils';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent } from '@/components/ui/context-menu';
 import { DeckContextMenuItem } from '@/components/custom/deck-context-menu-item';
 import { AlertDialog, AlertDialogHeader, AlertDialogContent, AlertDialogDescription, AlertDialogTitle, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from '@/components/ui/alert-dialog';
-import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 import { DEFAULT_DATABASE } from '@/shared/flashcards/defaultData';
@@ -87,7 +87,6 @@ function sortDecks(
 
 export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyProps) {
   const viewportRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
-  const renameInputRef = useRef<HTMLInputElement>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
 
   const database = useDeckStore((state) => state.database);
@@ -116,6 +115,9 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   const closeTab = useDeckTabsStore((state) => state.closeTab);
   const renameDeck = useDeckStore((state) => state.renameDeck);
   const refreshDeckInTabs = useDeckTabsStore((state) => state.refreshDeck);
+
+  const renameInputRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const preventFocusReturnRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,19 +181,38 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   };
 
   const startRename = (deck: Deck) => {
+    preventFocusReturnRef.current = true;
     setDeckToRename(deck.id);
     setRenameValue(deck.name);
   };
 
   const cancelRename = () => {
+    preventFocusReturnRef.current = false;
     setDeckToRename(null);
     setRenameValue('');
   };
 
   useEffect(() => {
-    if (deckToRename && renameInputRef.current) {
-      renameInputRef.current.select();
-    }
+    if (!deckToRename) return;
+
+    // Wait for ContextMenu to fully close and release focus before focusing input
+    // This prevents race condition where menu returns focus to trigger after input renders
+    const timeoutId = setTimeout(() => {
+      const el = renameInputRefs.current[deckToRename];
+      if (el) {
+        el.focus({ preventScroll: true });
+        // Select all text in contenteditable
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+      // Reset the ref after focus is applied
+      preventFocusReturnRef.current = false;
+    }, 200);
+
+    return () => clearTimeout(timeoutId);
   }, [deckToRename]);
 
   const handleRenameDeck = async (deckId: string) => {
@@ -202,18 +223,19 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
       return;
     }
 
+    // Optimistically exit rename mode immediately to prevent flicker
+    cancelRename();
+
     try {
       const result = await renameDeck(deckId, trimmedValue);
       if (result) {
         refreshDeckInTabs(result.deck);
       }
-      cancelRename();
     } catch (error) {
       console.error('Failed to rename deck', error);
       toast('Rename failed', {
         description: 'Could not persist deck rename to disk.',
       });
-      cancelRename();
     }
   };
 
@@ -286,20 +308,38 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
                       ${deck.id === activeTabId ? 'bg-accent/5' : ''}
                     `} 
                   >
-                    <div className={`
-                      h-6 leading-none flex items-end font-medium group-hover:text-accent-foreground transition-colors duration-200
-                      ${deck.id === activeTabId ? 'text-accent-foreground' : 'text-foreground'}
-                    `}>
+                    <div 
+                      className={cn(
+                        'h-6 leading-none flex items-end font-medium group-hover:text-accent-foreground transition-colors duration-200',
+                        deck.id === activeTabId ? 'text-accent-foreground' : 'text-foreground',
+                      )}>
                       {deckToRename === deck.id ? (
-                        <Input
-                          ref={renameInputRef}
-                          autoFocus
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
+                        <div
+                          ref={(el) => {
+                            if (el) {
+                              renameInputRefs.current[deck.id] = el;
+                              // Sync content if it differs
+                              if (el.textContent !== renameValue) {
+                                el.textContent = renameValue;
+                              }
+                            } else {
+                              delete renameInputRefs.current[deck.id];
+                            }
+                          }}
+                          contentEditable
+                          suppressContentEditableWarning
+                          onInput={(e) => {
+                            const newValue = e.currentTarget.textContent || '';
+                            if (newValue !== renameValue) {
+                              setRenameValue(newValue);
+                            }
+                          }}
                           onBlur={() => handleRenameDeck(deck.id)}
-                          onKeyDown={(e) => handleRenameKeyDown(e, deck.id)}
+                          onKeyDown={(e) => handleRenameKeyDown(e as any, deck.id)}
                           onClick={(e) => e.stopPropagation()}
-                          className="h-5 px-0 py-0 text-sm font-medium border-0 shadow-none focus-visible:ring-0 focus-visible:border-0 bg-transparent border-none"
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="outline-none"
+                          dir="ltr"
                         />
                       ) : (
                         deck.name
@@ -329,7 +369,15 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
               </ContextMenuTrigger>
 
               {/* Context menu content */}
-              <ContextMenuContent className='bg-background border-border min-w-0 w-20 p-0.5'>
+              <ContextMenuContent
+                className='bg-background border-border min-w-0 w-20 p-0.5'
+                onCloseAutoFocus={(e) => {
+                  // Prevent focus from returning to trigger when entering rename mode
+                  if (preventFocusReturnRef.current) {
+                    e.preventDefault();
+                  }
+                }}
+              >
                 {/* Rename action */}
                 <DeckContextMenuItem
                   onSelect={() => startRename(deck)}
