@@ -4,6 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent } from '@/components/ui/context-menu';
 import { DeckContextMenuItem } from '@/components/custom/deck-context-menu-item';
 import { AlertDialog, AlertDialogHeader, AlertDialogContent, AlertDialogDescription, AlertDialogTitle, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 import { DEFAULT_DATABASE } from '@/shared/flashcards/defaultData';
@@ -86,6 +87,7 @@ function sortDecks(
 
 export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyProps) {
   const viewportRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
 
   const database = useDeckStore((state) => state.database);
@@ -99,8 +101,10 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
     [database]
   );
 
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen]     = useState(false);
   const [deckToDelete, setDeckToDelete] = useState<Deck | null>(null);
+  const [renameValue, setRenameValue] = useState<string>('');
+  const [deckToRename, setDeckToRename] = useState<string | null>(null);
 
   const sortedDecks = useMemo(
     () => sortDecks(deckList, sortMode, sortOrder),
@@ -110,6 +114,8 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   const openDeckInTab = useDeckTabsStore((state) => state.openDeckInTab);
   const activeTabId = useDeckTabsStore((state) => state.activeTabId);
   const closeTab = useDeckTabsStore((state) => state.closeTab);
+  const renameDeck = useDeckStore((state) => state.renameDeck);
+  const refreshDeckInTabs = useDeckTabsStore((state) => state.refreshDeck);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,6 +178,55 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
     }
   };
 
+  const startRename = (deck: Deck) => {
+    setDeckToRename(deck.id);
+    setRenameValue(deck.name);
+  };
+
+  const cancelRename = () => {
+    setDeckToRename(null);
+    setRenameValue('');
+  };
+
+  useEffect(() => {
+    if (deckToRename && renameInputRef.current) {
+      renameInputRef.current.select();
+    }
+  }, [deckToRename]);
+
+  const handleRenameDeck = async (deckId: string) => {
+    const trimmedValue = renameValue.trim();
+
+    if (!trimmedValue) {
+      cancelRename();
+      return;
+    }
+
+    try {
+      const result = await renameDeck(deckId, trimmedValue);
+      if (result) {
+        refreshDeckInTabs(result.deck);
+      }
+      cancelRename();
+    } catch (error) {
+      console.error('Failed to rename deck', error);
+      toast('Rename failed', {
+        description: 'Could not persist deck rename to disk.',
+      });
+      cancelRename();
+    }
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, deckId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleRenameDeck(deckId);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelRename();
+    }
+  };
+
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -229,13 +284,26 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
                     className={`
                       h-12 flex flex-col px-4 transition-shadow duration-200 hover:shadow-[0_4px_20px_rgba(0,0,0,0.18),0_-2px_10px_rgba(0,0,0,0.10),3px_0_10px_rgba(0,0,0,0.12)]
                       ${deck.id === activeTabId ? 'bg-accent/5' : ''}
-                    `}
+                    `} 
                   >
                     <div className={`
                       h-6 leading-none flex items-end font-medium group-hover:text-accent-foreground transition-colors duration-200
-                      ${deck.id === activeTabId ? 'text-accent-foreground' : 'text-foreground'}  
+                      ${deck.id === activeTabId ? 'text-accent-foreground' : 'text-foreground'}
                     `}>
-                      {deck.name}
+                      {deckToRename === deck.id ? (
+                        <Input
+                          ref={renameInputRef}
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onBlur={() => handleRenameDeck(deck.id)}
+                          onKeyDown={(e) => handleRenameKeyDown(e, deck.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-5 px-0 py-0 text-sm font-medium border-0 shadow-none focus-visible:ring-0 focus-visible:border-0 bg-transparent border-none"
+                        />
+                      ) : (
+                        deck.name
+                      )}
                     </div>
                     <div className={`
                       h-6 flex pt-1 leading-none items-start text-xs font-normal
@@ -263,7 +331,11 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
               {/* Context menu content */}
               <ContextMenuContent className='bg-background border-border min-w-0 w-20 p-0.5'>
                 {/* Rename action */}
-                <DeckContextMenuItem >Rename</DeckContextMenuItem>
+                <DeckContextMenuItem
+                  onSelect={() => startRename(deck)}
+                >
+                  Rename
+                </DeckContextMenuItem>
 
                 {/* Duplicate action */}
                 <DeckContextMenuItem >Duplicate</DeckContextMenuItem>
@@ -277,6 +349,7 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
                 >
                   Delete
                 </DeckContextMenuItem>
+
               </ContextMenuContent>
             </ContextMenu>
           </Fragment>
@@ -303,7 +376,7 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
             <AlertDialogAction
               onClick={handleDeleteDeck}
             >
-              Continue
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
