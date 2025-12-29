@@ -104,6 +104,7 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   const [deckToDelete, setDeckToDelete] = useState<Deck | null>(null);
   const [renameValue, setRenameValue] = useState<string>('');
   const [deckToRename, setDeckToRename] = useState<string | null>(null);
+  const [deckToDuplicate, setDeckToDuplicate] = useState<Deck | null>(null);
 
   const sortedDecks = useMemo(
     () => sortDecks(deckList, sortMode, sortOrder),
@@ -118,6 +119,8 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
 
   const renameInputRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const preventFocusReturnRef = useRef(false);
+
+  const duplicateDeck = useDeckStore((state) => state.duplicateDeck);
 
   useEffect(() => {
     let cancelled = false;
@@ -246,6 +249,32 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
     } else if (e.key === 'Escape') {
       e.preventDefault();
       cancelRename();
+    }
+  };
+
+  const handleDuplicateDeck = async (deck: Deck) => {
+    try {
+      const result = await duplicateDeck(deck.id);
+      
+      if (result) {
+        const { deck: newDeck } = result;
+        openDeckInTab(newDeck);
+        
+        toast('Deck Duplicated', {
+          description: `Deck "${newDeck.name}" with ${newDeck.cardIds.length} cards has been created.`,
+          unstyled: true,
+          classNames: {
+            toast: 'bg-background border border-border rounded-lg shadow-lg p-2 flex items-center gap-2 min-w-[356px]',
+            title: 'text-foreground font-semibold text-sm',
+            description: 'text-muted-foreground text-xs mt-0.5',
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Failed to duplicate deck', error);
+      toast('Duplicate failed', {
+        description: 'Could not create deck duplicate.',
+      });
     }
   };
 
@@ -386,7 +415,11 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
                 </DeckContextMenuItem>
 
                 {/* Duplicate action */}
-                <DeckContextMenuItem >Duplicate</DeckContextMenuItem>
+                <DeckContextMenuItem 
+                  onSelect={() => handleDuplicateDeck(deck)}
+                >
+                  Duplicate
+                </DeckContextMenuItem>
 
                 {/* Delete action */}
                 <DeckContextMenuItem

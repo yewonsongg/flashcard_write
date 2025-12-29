@@ -16,6 +16,12 @@ type RenameResult = {
   deck: Deck;
 }
 
+type DuplicateResult = {
+  previous: Database;
+  updated: Database;
+  deck: Deck;
+}
+
 interface DeckStoreState {
   database: Database | null;
   loadError: string | null;
@@ -24,6 +30,7 @@ interface DeckStoreState {
   loadDatabase: () => Promise<void>;
   renameDeck: (deckId: string, newName: string) => Promise<RenameResult | null>;
   deleteDeck: (deckId: string) => Promise<DeleteResult | null>;
+  duplicateDeck: (deckId: string) => Promise<DuplicateResult | null>;
   restoreDatabase: (db: Database) => Promise<void>;
   setDatabase: (db: Database) => void;
 }
@@ -127,6 +134,63 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
       };
     } catch (error) {
       console.error('Failed to save flashcard database after deleting deck', error);
+      set({ database: previous });
+      throw error;
+    }
+  },
+
+  duplicateDeck: async (deckId) => {
+    const current = get().database;
+    if (!current) return null;
+
+    const sourceDeck = current.decks[deckId];
+    if (!sourceDeck) return null;
+
+    const newDeckId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
+
+    // Create a mapping of old card IDs to new card IDs
+    const cardIdMap: Record<string, string> = {};
+    const newCards: Record<string, typeof current.cards[string]> = {};
+
+    // Duplicate all cards from the source deck
+    sourceDeck.cardIds.forEach((cardId) => {
+      const sourceCard = current.cards[cardId];
+      if (sourceCard) {
+        const newCardId = crypto.randomUUID();
+        cardIdMap[cardId] = newCardId;
+        newCards[newCardId] = {
+          ...sourceCard,
+          id: newCardId,
+        };
+      }
+    });
+
+    // Create the new deck with duplicated cards
+    const newDeck: Deck = {
+      id: newDeckId,
+      name: `${sourceDeck.name} (Copy)`,
+      cardIds: Object.values(cardIdMap), // Use new card IDs
+      pinned: false, // Don't inherit pinned status
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      lastOpenedAt: timestamp,
+    };
+
+    const previous = current;
+    const updated: Database = {
+      decks: { ...current.decks, [newDeckId]: newDeck },
+      cards: { ...current.cards, ...newCards },
+    };
+
+    set({ database: updated });
+
+    try {
+      await window.flashcards?.saveDatabase(updated);
+      window.dispatchEvent(new CustomEvent('flashcards:database-updated'));
+      return { previous, updated, deck: newDeck };
+    } catch (error) {
+      console.error('Failed to save flashcard database after duplicating deck', error);
       set({ database: previous });
       throw error;
     }
