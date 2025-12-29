@@ -1,19 +1,19 @@
 import { TabsTrigger, TabsList, TabsContent } from "@radix-ui/react-tabs";
 import { X } from "lucide-react";
-import { useDeckTabsStore } from "../decks/useDeckTabsStore";
-import { DeckView } from "../decks/DeckView";
 import { cn } from "@/lib/utils";
+import { tabRenderers } from "./tabRenderers";
+import { useTabsStore } from "./useTabsStore";
 
 export function TabsTriggers() {
-  const tabs = useDeckTabsStore((state) => state.tabs);
-  const closeTab = useDeckTabsStore((state) => state.closeTab);
-  const closeOtherTabs = useDeckTabsStore((state) => state.closeOtherTabs);
-  const closeAllTabs = useDeckTabsStore((state) => state.closeAllTabs);
+  const tabs = useTabsStore((state) => state.tabs);
+  const closeTab = useTabsStore((state) => state.closeTab);
+  const closeOtherTabs = useTabsStore((state) => state.closeOtherTabs);
+  const closeAllTabs = useTabsStore((state) => state.closeAllTabs);
 
   if (tabs.length === 0) {
     return (
       <div className='text-sm text-zinc-400'>
-        No deck open. Select one from the sidebar.
+        No tab open. Select one from the sidebar.
       </div>
     );
   }
@@ -33,7 +33,7 @@ export function TabsTriggers() {
             )}
           >
             <span className='flex h-full items-center leading-none truncate'>
-              {tab.deck.name}
+              {tab.title}
             </span>
             <span
               className='flex items-center justify-center rounded-sm hover:bg-accent/10 hover:text-zinc-800'
@@ -51,7 +51,7 @@ export function TabsTriggers() {
         <button
           className='hover:text-zinc-800'
           onClick={() => {
-            const activeId = useDeckTabsStore.getState().activeTabId;
+            const activeId = useTabsStore.getState().activeTabId;
             if (activeId) { closeOtherTabs(activeId); }
           }}
         >
@@ -69,27 +69,32 @@ export function TabsTriggers() {
 }
 
 export function TabsRenders() {
-  const tabs = useDeckTabsStore((state) => state.tabs);
+  const tabs = useTabsStore((state) => state.tabs);
 
   if (tabs.length === 0) {
     return (
       <div className='flex-1 min-h-0 flex items-center justify-center'>
-        Select a deck from the sidebar to get started
+        Select something from the sidebar to get started
       </div>
     )
   }
   
   return (
     <div className='flex-1 min-h-0 overflow-hidden'>
-      {tabs.map((tab) => (
-        <TabsContent
-          key={tab.id}
-          value={tab.id}
-          className='h-full bg-accent/5 text-accent-foreground'
-        >
-          <DeckView deck={tab.deck} />
-        </TabsContent>
-      ))}
+      {tabs.map((tab) => {
+        const renderer = tabRenderers[tab.type];
+        if (!renderer) return null;
+
+        return (
+          <TabsContent
+            key={tab.id}
+            value={tab.id}
+            className='h-full bg-accent/5 text-accent-foreground'
+          >
+            {renderer(tab)}
+          </TabsContent>
+        );
+      })}
     </div>
   )
 }

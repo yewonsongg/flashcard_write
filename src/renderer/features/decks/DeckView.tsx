@@ -10,9 +10,9 @@ import { Trash2, CirclePlay, Plus, CirclePlus } from 'lucide-react';
 
 import type { Deck, DeckCard } from "@/shared/flashcards/types"
 import { DeckCardsPane } from './DeckCardsPane';
-import { useDeckTabsStore } from "./useDeckTabsStore";
 import { useDeckStore } from "./useDeckStore";
 import { DeckDeleteButton } from '@/renderer/shared-ui/DeckDeleteButton';
+import { useTabsStore } from "../tabs/useTabsStore";
 
 export function DeckView({ deck }: { deck: Deck }) {
   const viewportRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
@@ -20,8 +20,8 @@ export function DeckView({ deck }: { deck: Deck }) {
   const [lastAddedCardId, setLastAddedCardId] = useState<string | null>(null);
   const [title, setTitle] = useState<string>(deck.name);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const refreshDeckInTabs = useDeckTabsStore((state) => state.refreshDeck);
-  const closeTab = useDeckTabsStore((state) => state.closeTab);
+  const updateTabPayload = useTabsStore((state) => state.updateTabPayload);
+  const closeTab = useTabsStore((state) => state.closeTab);
   const deleteDeck = useDeckStore((state) => state.deleteDeck);
   const restoreDatabase = useDeckStore((state) => state.restoreDatabase);
   const persistTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -65,7 +65,7 @@ export function DeckView({ deck }: { deck: Deck }) {
         cards: cardsMap,
       });
 
-      refreshDeckInTabs(updatedDeck);
+      updateTabPayload('deck', updatedDeck);
       window.dispatchEvent(new CustomEvent('flashcards:database-updated'));
     } catch (error) {
       console.error('Failed to save cards for deck', error);
@@ -93,7 +93,7 @@ export function DeckView({ deck }: { deck: Deck }) {
         cards: db.cards,
       });
 
-      refreshDeckInTabs(updatedDeck);
+      updateTabPayload('deck', updatedDeck);
       window.dispatchEvent(new CustomEvent('flashcards:database-updated'));
     } catch (error) {
       console.error('Failed to save deck title', error);

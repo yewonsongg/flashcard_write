@@ -8,8 +8,8 @@ import { toast } from 'sonner';
 
 import { DEFAULT_DATABASE } from '@/shared/flashcards/defaultData';
 import type { Deck, Database, SortMode, SortOrder } from '@/shared/flashcards/types';
-import { useDeckTabsStore } from '@/renderer/features/decks/useDeckTabsStore';
 import { useDeckStore } from '@/renderer/features/decks/useDeckStore';
+import { useTabsStore } from '@/renderer/features/tabs/useTabsStore';
 
 type SidebarBodyProps = {
   isCollapsed: boolean;
@@ -107,9 +107,9 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
     [deckList, sortMode, sortOrder]
   );
 
-  const openDeckInTab = useDeckTabsStore((state) => state.openDeckInTab);
-  const activeTabId = useDeckTabsStore((state) => state.activeTabId);
-  const closeTab = useDeckTabsStore((state) => state.closeTab);
+  const openTab = useTabsStore((state) => state.openTab);
+  const activeTabId = useTabsStore((state) => state.activeTabId);
+  const closeTab = useTabsStore((state) => state.closeTab);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,7 +223,7 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
               <ContextMenuTrigger asChild>
                 <div 
                   className='group flex flex-col cursor-pointer'
-                  onClick={() => openDeckInTab(deck)}
+                  onClick={() => openTab('deck', deck)}
                 >
                   <div 
                     className={`

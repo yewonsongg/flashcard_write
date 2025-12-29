@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Tabs } from '@radix-ui/react-tabs';
 import { ContentHeader } from './ContentHeader';
 import { ContentBody } from './ContentBody';
-import { useDeckTabsStore } from '@/renderer/features/decks/useDeckTabsStore';
+import { useTabsStore } from '@/renderer/features/tabs/useTabsStore';
 
 export function ContentArea() { 
-  const tabs = useDeckTabsStore((state) => state.tabs);
-  const activeTabId = useDeckTabsStore((state) => state.activeTabId);
-  const setActiveTabId = useDeckTabsStore((state) => state.setActiveTabId);
+  const tabs = useTabsStore((state) => state.tabs);
+  const activeTabId = useTabsStore((state) => state.activeTabId);
+  const setActiveTabId = useTabsStore((state) => state.setActiveTabId);
 
   if (tabs.length === 0) {
     return (
