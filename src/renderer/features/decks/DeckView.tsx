@@ -20,10 +20,21 @@ export function DeckView({ deck }: { deck: Deck }) {
   const [lastAddedCardId, setLastAddedCardId] = useState<string | null>(null);
   const [title, setTitle] = useState<string>(deck.name);
   const [deleteOpen, setDeleteOpen] = useState(false);
+<<<<<<< HEAD
   const updateTabPayload = useTabsStore((state) => state.updateTabPayload);
   const closeTab = useTabsStore((state) => state.closeTab);
   const deleteDeck = useDeckStore((state) => state.deleteDeck);
   const restoreDatabase = useDeckStore((state) => state.restoreDatabase);
+=======
+
+  const refreshDeckInTabs = useDeckTabsStore((state) => state.refreshDeck);
+  const closeTab          = useDeckTabsStore((state) => state.closeTab);
+
+  const renameDeck        = useDeckStore((state) => state.renameDeck);
+  const deleteDeck        = useDeckStore((state) => state.deleteDeck);
+  const restoreDatabase   = useDeckStore((state) => state.restoreDatabase);
+
+>>>>>>> yewon
   const persistTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
 
@@ -71,6 +82,7 @@ export function DeckView({ deck }: { deck: Deck }) {
       console.error('Failed to save cards for deck', error);
     }
   };
+<<<<<<< HEAD
   const persistDeckTitle = async (nextTitle: string) => {
     if (!window.flashcards) return;
 
@@ -99,6 +111,8 @@ export function DeckView({ deck }: { deck: Deck }) {
       console.error('Failed to save deck title', error);
     }
   };
+=======
+>>>>>>> yewon
   useEffect(() => {
     // Reset on deck change and load from database
     isInitialLoadRef.current = true;
@@ -197,13 +211,25 @@ export function DeckView({ deck }: { deck: Deck }) {
   const handleTitleChange = (value: string) => {
     setTitle(value);
   };
-  const handleTitleBlur = () => {
+  const handleTitleBlur = async () => {
     const nextTitle = title.trim();
     if (!nextTitle || nextTitle === deck.name) {
       setTitle(deck.name);
       return;
     }
-    persistDeckTitle(nextTitle);
+
+    try {
+      const result = await renameDeck(deck.id, nextTitle);
+      if (result) {
+        refreshDeckInTabs(result.deck);
+      }
+    } catch (error) {
+      console.error('Failed to rename deck', error);
+      toast('Rename failed', {
+        description: 'Could not save deck title to disk.',
+      });
+      setTitle(deck.name); // Revert on error
+    }
   };
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -212,7 +238,6 @@ export function DeckView({ deck }: { deck: Deck }) {
       e.currentTarget.blur();
     }
   };
-
   const handleDeleteDeck = async () => {
     try {
       const result = await deleteDeck(deck.id);
