@@ -22,6 +22,12 @@ type DuplicateResult = {
   deck: Deck;
 }
 
+type CreateDeckResult = {
+  previous: Database;
+  updated: Database;
+  deck: Deck;
+}
+
 interface DeckStoreState {
   database: Database | null;
   loadError: string | null;
@@ -33,6 +39,7 @@ interface DeckStoreState {
   duplicateDeck: (deckId: string) => Promise<DuplicateResult | null>;
   restoreDatabase: (db: Database) => Promise<void>;
   setDatabase: (db: Database) => void;
+  createDeck: (newName ?: string) => Promise<CreateDeckResult | null>;
 }
 
 export const useDeckStore = create<DeckStoreState>((set, get) => ({
@@ -205,4 +212,39 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
       console.error('Failed to restore flashcard database', error);
     }
   },
+
+  createDeck: async (newName) => {
+    const current = get().database;
+    if (!current) return null;
+    const newDeckId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
+
+    const newDeck: Deck = {
+      id: newDeckId,
+      name: newName || "New Deck",
+      cardIds: [],
+      pinned: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      lastOpenedAt: timestamp
+    }
+
+    const previous = current;
+    const updated: Database = {
+      decks: { ...current.decks, [newDeckId]: newDeck },
+      cards: { ...current.cards, },
+    };
+
+    set({ database: updated });
+
+    try {
+      await window.flashcards?.saveDatabase(updated);
+      window.dispatchEvent(new CustomEvent('flashcards:database-updated'));
+      return { previous, updated, deck: newDeck };
+    } catch (error) {
+      console.error('Failed to create new deck', error);
+      set({ database: previous });
+      throw error;
+    }
+  }
 }));
