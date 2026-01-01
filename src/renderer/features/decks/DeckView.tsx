@@ -20,12 +20,31 @@ export function DeckView({ deck }: { deck: Deck }) {
   const [lastAddedCardId, setLastAddedCardId] = useState<string | null>(null);
   const [title, setTitle] = useState<string>(deck.name);
   const [deleteOpen, setDeleteOpen] = useState(false);
+<<<<<<< HEAD
   const updateTabPayload  = useTabsStore((state) => state.updateTabPayload);
   const closeTab          = useTabsStore((state) => state.closeTab);
   
+=======
+<<<<<<< HEAD
+  const updateTabPayload = useTabsStore((state) => state.updateTabPayload);
+  const closeTab = useTabsStore((state) => state.closeTab);
+  const deleteDeck = useDeckStore((state) => state.deleteDeck);
+  const restoreDatabase = useDeckStore((state) => state.restoreDatabase);
+=======
+
+  const refreshDeckInTabs = useDeckTabsStore((state) => state.refreshDeck);
+  const closeTab          = useDeckTabsStore((state) => state.closeTab);
+
+  const renameDeck        = useDeckStore((state) => state.renameDeck);
+>>>>>>> d6aa108c1a95bcdf68d16524a60a2820f6caa9fd
   const deleteDeck        = useDeckStore((state) => state.deleteDeck);
   const renameDeck        = useDeckStore((state) => state.renameDeck);
   const restoreDatabase   = useDeckStore((state) => state.restoreDatabase);
+<<<<<<< HEAD
+=======
+
+>>>>>>> yewon
+>>>>>>> d6aa108c1a95bcdf68d16524a60a2820f6caa9fd
   const persistTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
 
@@ -73,6 +92,40 @@ export function DeckView({ deck }: { deck: Deck }) {
       console.error('Failed to save cards for deck', error);
     }
   };
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+  const persistDeckTitle = async (nextTitle: string) => {
+    if (!window.flashcards) return;
+
+    try {
+      const db = await window.flashcards.loadDatabase();
+      const deckInDb = db.decks[deck.id];
+      if (!deckInDb) {
+        console.warn(`Deck ${deck.id} not found in database; cannot save title.`);
+        return;
+      }
+
+      const updatedDeck: Deck = {
+        ...deckInDb,
+        name: nextTitle,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await window.flashcards.saveDatabase({
+        decks: { ...db.decks, [deck.id]: updatedDeck },
+        cards: db.cards,
+      });
+
+      updateTabPayload('deck', updatedDeck);
+      window.dispatchEvent(new CustomEvent('flashcards:database-updated'));
+    } catch (error) {
+      console.error('Failed to save deck title', error);
+    }
+  };
+=======
+>>>>>>> yewon
+>>>>>>> d6aa108c1a95bcdf68d16524a60a2820f6caa9fd
   useEffect(() => {
     // Reset on deck change and load from database
     isInitialLoadRef.current = true;
