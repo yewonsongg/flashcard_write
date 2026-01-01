@@ -13,14 +13,16 @@ export function SidebarAddButton({
   return (
     <button
       onClick={onToggle}
-      className='absolute bottom-2 left-2 z-10 inline-flex h-5 w-5 items-center justify-center group cursor-pointer'
+      className={cn('absolute bottom-2.5 left-2.5 z-10 inline-flex items-center justify-center group cursor-pointer bg-background rounded-full',
+        isCollapsed ? 'h-5 w-5' : 'h-10 w-10'
+      )}
     >
       <CirclePlus
         className={cn(
           'h-5 w-5 transition-all duration-150',
-          'stroke-foreground stroke-2 fill-none',
+          'stroke-foreground stroke-2',
           'group-hover:stroke-[#A0A0A0]',
-          isCollapsed && 'rotate-180'
+          isCollapsed ? 'h-5 w-5' : 'h-10 w-10'
         )}
       />
     </button>

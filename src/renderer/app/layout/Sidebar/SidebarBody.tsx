@@ -5,6 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent } from '@/components/ui/context-menu';
 import { DeckContextMenuItem } from '@/components/custom/deck-context-menu-item';
 import { AlertDialog, AlertDialogHeader, AlertDialogContent, AlertDialogDescription, AlertDialogTitle, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 import { DEFAULT_DATABASE } from '@/shared/flashcards/defaultData';
@@ -94,6 +95,7 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   const loadError = useDeckStore((state) => state.loadError);
   const loadDatabaseFromDisk = useDeckStore((state) => state.loadDatabase);
   const deleteDeck = useDeckStore((state) => state.deleteDeck);
+  const createDeck = useDeckStore((state) => state.createDeck);
   const restoreDatabase = useDeckStore((state) => state.restoreDatabase);
 
   const deckList = useMemo(
@@ -105,6 +107,8 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   const [deckToDelete, setDeckToDelete] = useState<Deck | null>(null);
   const [renameValue, setRenameValue] = useState<string>('');
   const [deckToRename, setDeckToRename] = useState<string | null>(null);
+  const [createOpen, setCreateOpen]     = useState(false);
+  const [deckName, setDeckName] = useState<string>('');
 
   const sortedDecks = useMemo(
     () => sortDecks(deckList, sortMode, sortOrder),
@@ -185,6 +189,21 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
     }
   };
 
+  const handleCreateDeck = async () => {
+    try {
+      const result = await createDeck(deckName);
+      if (result) {
+        openTab('deck', result.deck);
+        setCreateOpen(false);
+        setDeckName("");
+      }
+    } catch (error) {
+      toast("Failed to create deck", {
+        description: 'Could not create new deck.',
+      });
+    }
+  }
+
   const startRename = (deck: Deck) => {
     preventFocusReturnRef.current = true;
     setDeckToRename(deck.id);
@@ -257,7 +276,6 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   const handleDuplicateDeck = async (deck: Deck) => {
     try {
       const result = await duplicateDeck(deck.id);
-      
       if (result) {
         const { deck: newDeck } = result;
         openTab('deck', newDeck);
@@ -311,13 +329,16 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   if (isCollapsed) {
     return (
       <div className='min-w-0 w-full min-h-0 flex-1 flex-col'>
-
+        <SidebarAddButton
+          isCollapsed={isCollapsed}
+          onToggle={() => console.log("Add New Deck")}
+        />
       </div>
     )
   }
   
   return (
-    <ScrollArea viewportRef={viewportRef} className='min-w-0 w-full min-h-0 flex-1 flex flex-col overflow-y-auto'>
+    <ScrollArea viewportRef={viewportRef} className='relative min-w-0 w-full min-h-0 flex-1 flex flex-col overflow-y-auto'>
       <div className={`flex flex-col h-max ${hasOverflow ? 'pr-3' : 'pr-0'}`}>
         {loadError && (
           <div className='px-4 py-2 text-xs text-muted-foreground'>
@@ -440,7 +461,10 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
       </div>
       <SidebarAddButton
         isCollapsed={isCollapsed}
-        onToggle={() => console.log("Add New Deck")}
+        onToggle={() => {
+          console.log("Add New Deck");
+          setCreateOpen(true);
+        }}
       />
 
       {/* Single alert dialog so only one overlay renders */}
@@ -464,6 +488,35 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
               onClick={handleDeleteDeck}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create a New Deck</AlertDialogTitle>
+            <AlertDialogDescription>
+              Title: <Input placeholder="Enter in a title" autoFocus value={deckName} onChange={(e) => setDeckName(e.target.value)} onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  handleCreateDeck();
+                }
+              }}/>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCreateDeck}
+            >
+              Create
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
