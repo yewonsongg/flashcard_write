@@ -104,7 +104,6 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
   const [deckToDelete, setDeckToDelete] = useState<Deck | null>(null);
   const [renameValue, setRenameValue] = useState<string>('');
   const [deckToRename, setDeckToRename] = useState<string | null>(null);
-  const [deckToDuplicate, setDeckToDuplicate] = useState<Deck | null>(null);
 
   const sortedDecks = useMemo(
     () => sortDecks(deckList, sortMode, sortOrder),
@@ -167,6 +166,7 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
           label: 'Undo',
           onClick: () => {
             restoreDatabase(previous);
+            openTab('deck', deckToDelete);
           },
         },
         unstyled: true,
@@ -340,7 +340,7 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
                   >
                     <div 
                       className={cn(
-                        'h-6 leading-none flex items-end font-medium group-hover:text-accent-foreground transition-colors duration-200',
+                        'h-6 leading-tight flex items-end font-medium group-hover:text-accent-foreground transition-colors duration-200 min-w-0 truncate',
                         deck.id === activeTabId ? 'text-accent-foreground' : 'text-foreground',
                       )}>
                       {deckToRename === deck.id ? (
