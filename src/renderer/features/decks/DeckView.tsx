@@ -1,16 +1,18 @@
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { toast } from "sonner";
 
-import { Trash2, CirclePlay, Plus, CirclePlus } from 'lucide-react';
+import { Trash2, CirclePlay, Plus, CirclePlus, Search } from 'lucide-react';
 
 import type { Deck, DeckCard } from "@/shared/flashcards/types"
 import { DeckCardsPane } from './DeckCardsPane';
 import { useDeckStore } from "./useDeckStore";
+import { useSearchStore } from "./useSearchStore";
 import { DeckDeleteButton } from '@/renderer/shared-ui/DeckDeleteButton';
 import { useTabsStore } from "../tabs/useTabsStore";
 
@@ -22,12 +24,31 @@ export function DeckView({ deck }: { deck: Deck }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const updateTabPayload  = useTabsStore((state) => state.updateTabPayload);
   const closeTab          = useTabsStore((state) => state.closeTab);
-  
+
   const deleteDeck        = useDeckStore((state) => state.deleteDeck);
   const renameDeck        = useDeckStore((state) => state.renameDeck);
   const restoreDatabase   = useDeckStore((state) => state.restoreDatabase);
+  const database          = useDeckStore((state) => state.database);
+
+  const searchQuery       = useSearchStore((state) => state.getSearchQuery(deck.id));
+  const setSearchQuery    = useSearchStore((state) => state.setSearchQuery);
+
   const persistTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
+
+  // Filter cards based on search query
+  const filteredCards = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return cards;
+    }
+
+    const query = searchQuery.toLowerCase();
+    return cards.filter((card) => {
+      const frontMatch = card.front.toLowerCase().includes(query);
+      const backMatch = card.back.toLowerCase().includes(query);
+      return frontMatch || backMatch;
+    });
+  }, [cards, searchQuery]);
 
   const persistCards = async (nextCards: DeckCard[]) => {
     if (!window.flashcards) return;
@@ -253,13 +274,13 @@ export function DeckView({ deck }: { deck: Deck }) {
       <div className='flex flex-col gap-3 px-4 py-3'>
         <div className='flex align-center justify-center'>
           <InputGroup className='w-75 bg-accent/5 has-[[data-slot=input-group-control]:focus-visible]:ring-2 has-[[data-slot=input-group-control]:focus-visible]:bg-background'>
-            <InputGroupInput 
-              id='title' 
+            <InputGroupInput
+              id='title'
               value={title}
               onChange={(e) => handleTitleChange(e.target.value)}
               onBlur={handleTitleBlur}
               onKeyDown={handleTitleKeyDown}
-              placeholder={deck.name} 
+              placeholder={deck.name}
               className='font-semibold placeholder:font-semibold placeholder:text-accent-foreground'
             />
             <InputGroupAddon align='block-start' className=''>
@@ -285,13 +306,23 @@ export function DeckView({ deck }: { deck: Deck }) {
               New Card
               <CirclePlus className='h-5 w-5' strokeWidth={1.5} />
             </Button>
-            <DeckDeleteButton 
+            <DeckDeleteButton
               setDeleteOpen={setDeleteOpen}
             />
           </div>
         </div>
-        <DeckCardsPane 
-          cards={cards}
+        <div className='relative'>
+          <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
+          <Input
+            type='text'
+            placeholder='Search cards...'
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(deck.id, e.target.value)}
+            className='pl-9 bg-accent/5 focus-visible:bg-background'
+          />
+        </div>
+        <DeckCardsPane
+          cards={filteredCards}
           onChangeCard={handleChangeCard}
           onBlurCard={handleBlurCard}
           autoFocusCardId={lastAddedCardId}
