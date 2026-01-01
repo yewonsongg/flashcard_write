@@ -11,6 +11,7 @@ import { Trash2, CirclePlay, Plus, CirclePlus, Search } from 'lucide-react';
 
 import type { Deck, DeckCard } from "@/shared/flashcards/types"
 import { DeckCardsPane } from './DeckCardsPane';
+import { CardFilterPopover } from './CardFilterPopover';
 import { useDeckStore } from "./useDeckStore";
 import { useSearchStore } from "./useSearchStore";
 import { DeckDeleteButton } from '@/renderer/shared-ui/DeckDeleteButton';
@@ -32,6 +33,9 @@ export function DeckView({ deck }: { deck: Deck }) {
 
   const searchQuery       = useSearchStore((state) => state.getSearchQuery(deck.id));
   const setSearchQuery    = useSearchStore((state) => state.setSearchQuery);
+  const sortSettings      = useSearchStore((state) => state.getSortSettings(deck.id));
+  const setSortMode       = useSearchStore((state) => state.setSortMode);
+  const setSortOrder      = useSearchStore((state) => state.setSortOrder);
 
   const persistTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
@@ -49,6 +53,38 @@ export function DeckView({ deck }: { deck: Deck }) {
       return frontMatch || backMatch;
     });
   }, [cards, searchQuery]);
+
+  // Sort filtered cards based on sort settings
+  const sortedAndFilteredCards = useMemo(() => {
+    const toSort = [...filteredCards];
+
+    if (sortSettings.sortMode === 'default') {
+      return toSort;
+    }
+
+    toSort.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortSettings.sortMode) {
+        case 'createdDate':
+          comparison = (a.createdAt || '').localeCompare(b.createdAt || '');
+          break;
+        case 'editedDate':
+          comparison = (a.updatedAt || '').localeCompare(b.updatedAt || '');
+          break;
+        case 'frontText':
+          comparison = a.front.localeCompare(b.front);
+          break;
+        case 'backText':
+          comparison = a.back.localeCompare(b.back);
+          break;
+      }
+
+      return sortSettings.sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return toSort;
+  }, [filteredCards, sortSettings]);
 
   const persistCards = async (nextCards: DeckCard[]) => {
     if (!window.flashcards) return;
@@ -147,7 +183,16 @@ export function DeckView({ deck }: { deck: Deck }) {
     updateCardField(id, field, value, { persist: false });
   };
   const handleBlurCard = (id: string, field: 'front' | 'back', value: string) => {
-    updateCardField(id, field, value, { persist: true });
+    // Update the updatedAt timestamp when a card is edited
+    setCards((prev) => {
+      const updated = prev.map((card) =>
+        card.id === id
+          ? { ...card, [field]: value, updatedAt: new Date().toISOString() }
+          : card
+      );
+      persistCards(updated);
+      return updated;
+    });
   };
   const handleDeleteCard = (id: string) => {
     setCards((prev) => {
@@ -159,11 +204,13 @@ export function DeckView({ deck }: { deck: Deck }) {
   const handleAddCard = () => {
     // Clear the last added card ID first to ensure useEffect triggers on rapid clicks
     setLastAddedCardId(null);
-    
+
     const nextId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
       : `card_${Date.now()}`;
-    
+
+    const timestamp = new Date().toISOString();
+
     setCards((prev) => {
       const updated = [
         ...prev,
@@ -171,9 +218,11 @@ export function DeckView({ deck }: { deck: Deck }) {
           id: nextId,
           front: '',
           back: '',
+          createdAt: timestamp,
+          updatedAt: timestamp,
         },
       ];
-      
+
       // Debounce persist to avoid race conditions on rapid clicks
       if (persistTimerRef.current) {
         clearTimeout(persistTimerRef.current);
@@ -182,10 +231,10 @@ export function DeckView({ deck }: { deck: Deck }) {
         persistCards(updated);
         persistTimerRef.current = null;
       }, 500);
-      
+
       return updated;
     });
-    
+
     // Set the new card ID in next tick to ensure state change is detected
     setTimeout(() => setLastAddedCardId(nextId), 0);
   };
@@ -289,26 +338,36 @@ export function DeckView({ deck }: { deck: Deck }) {
               </Label>
             </InputGroupAddon>
           </InputGroup>
-          <div className='ml-auto flex align-center gap-2'>
-            <Button
-              variant='default'
-              className='gap-1 has-[>svg]:px-2'
-              onClick={() => console.log('Clicked Practice')}
-            >
-              Practice
-              <CirclePlay className='h-5 w-5' strokeWidth={1.5} />
-            </Button>
-            <Button
-              variant='outline'
-              className='gap-1 has-[>svg]:px-2'
-              onClick={handleAddCard}
-            >
-              New Card
-              <CirclePlus className='h-5 w-5' strokeWidth={1.5} />
-            </Button>
-            <DeckDeleteButton
-              setDeleteOpen={setDeleteOpen}
-            />
+          <div className='ml-auto flex flex-col justify-between'>
+            <div className='flex align-center gap-2'>
+              <Button
+                variant='default'
+                className='gap-1 has-[>svg]:px-2'
+                onClick={() => console.log('Clicked Practice')}
+              >
+                Practice
+                <CirclePlay className='h-5 w-5' strokeWidth={1.5} />
+              </Button>
+              <Button
+                variant='outline'
+                className='gap-1 has-[>svg]:px-2'
+                onClick={handleAddCard}
+              >
+                New Card
+                <CirclePlus className='h-5 w-5' strokeWidth={1.5} />
+              </Button>
+              <DeckDeleteButton
+                setDeleteOpen={setDeleteOpen}
+              />
+            </div>
+            <div className='flex items-center justify-end gap-2'>
+              <CardFilterPopover
+                sortMode={sortSettings.sortMode}
+                sortOrder={sortSettings.sortOrder}
+                setSortMode={(mode) => setSortMode(deck.id, mode)}
+                setSortOrder={(order) => setSortOrder(deck.id, order)}
+              />
+            </div>
           </div>
         </div>
         <div className='relative'>
@@ -322,7 +381,7 @@ export function DeckView({ deck }: { deck: Deck }) {
           />
         </div>
         <DeckCardsPane
-          cards={filteredCards}
+          cards={sortedAndFilteredCards}
           onChangeCard={handleChangeCard}
           onBlurCard={handleBlurCard}
           autoFocusCardId={lastAddedCardId}

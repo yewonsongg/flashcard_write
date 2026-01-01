@@ -13,6 +13,8 @@ export interface DeckCard {
   id: string;
   front: string;
   back: string;
+  createdAt?: string;     // ISO timestamp (optional for backward compatibility)
+  updatedAt?: string;     // ISO timestamp (optional for backward compatibility)
 }
 
 export interface Database {
@@ -23,3 +25,7 @@ export interface Database {
 export type SortMode = 'name' | 'cardCount' | 'lastOpened' | 'lastModified';
 
 export type SortOrder = 'asc' | 'desc';
+
+export type CardSortMode = 'createdDate' | 'editedDate' | 'frontText' | 'backText' | 'default';
+
+export type CardSortOrder = 'asc' | 'desc';
