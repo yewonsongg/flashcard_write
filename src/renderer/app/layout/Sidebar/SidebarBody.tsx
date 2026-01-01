@@ -11,6 +11,7 @@ import { DEFAULT_DATABASE } from '@/shared/flashcards/defaultData';
 import type { Deck, Database, SortMode, SortOrder } from '@/shared/flashcards/types';
 import { useDeckStore } from '@/renderer/features/decks/useDeckStore';
 import { useTabsStore } from '@/renderer/features/tabs/useTabsStore';
+import { SidebarAddButton } from '@/renderer/shared-ui/SidebarAddButton';
 
 type SidebarBodyProps = {
   isCollapsed: boolean;
@@ -437,6 +438,10 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
           </Fragment>
         ))}
       </div>
+      <SidebarAddButton
+        isCollapsed={isCollapsed}
+        onToggle={() => console.log("Add New Deck")}
+      />
 
       {/* Single alert dialog so only one overlay renders */}
       <AlertDialog
