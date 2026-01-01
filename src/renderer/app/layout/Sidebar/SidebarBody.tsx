@@ -111,16 +111,10 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
     [deckList, sortMode, sortOrder]
   );
 
-<<<<<<< HEAD
   const openTab = useTabsStore((state) => state.openTab);
   const activeTabId = useTabsStore((state) => state.activeTabId);
   const closeTab = useTabsStore((state) => state.closeTab);
   
-=======
-  const openDeckInTab = useDeckTabsStore((state) => state.openDeckInTab);
-  const activeTabId = useDeckTabsStore((state) => state.activeTabId);
-  const closeTab = useDeckTabsStore((state) => state.closeTab);
->>>>>>> d6aa108c1a95bcdf68d16524a60a2820f6caa9fd
   const renameDeck = useDeckStore((state) => state.renameDeck);
   // const refreshDeckInTabs = useDeckTabsStore((state) => state.refreshDeck);
 
