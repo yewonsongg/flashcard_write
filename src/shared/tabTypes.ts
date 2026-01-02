@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import type { Deck } from './flashcards/types.js';
 
-export type TabType = 'deck';
+export type TabType = 'deck' | 'practice';
 
 export type TabPayloadMap = {
   deck: Deck;
+  practice: Deck;
 };
 
 export type TabModel<T extends TabType = TabType> = {

@@ -82,7 +82,7 @@ export function TabsRenders() {
   return (
     <div className='flex-1 min-h-0 overflow-hidden'>
       {tabs.map((tab) => {
-        const renderer = tabRenderers[tab.type];
+        const renderer = tabRenderers[tab.type as keyof typeof tabRenderers];
         if (!renderer) return null;
 
         return (
@@ -91,7 +91,7 @@ export function TabsRenders() {
             value={tab.id}
             className='h-full bg-accent/5 text-accent-foreground'
           >
-            {renderer(tab)}
+            {renderer(tab as any)}
           </TabsContent>
         );
       })}

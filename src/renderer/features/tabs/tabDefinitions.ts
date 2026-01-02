@@ -6,4 +6,9 @@ export const tabDefinitions: TabRegistry = {
     getId: (deck) => deck.id,
     getTitle: (deck) => deck.name,
   },
+  practice: {
+    type: 'practice',
+    getId: (deck) => `practice:${deck.id}`,
+    getTitle: (deck) => `Practice: ${deck.name}`,
+  },
 };

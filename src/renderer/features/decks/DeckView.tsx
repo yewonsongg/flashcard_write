@@ -23,6 +23,7 @@ export function DeckView({ deck }: { deck: Deck }) {
   const [lastAddedCardId, setLastAddedCardId] = useState<string | null>(null);
   const [title, setTitle] = useState<string>(deck.name);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const openTab           = useTabsStore((state) => state.openTab);
   const updateTabPayload  = useTabsStore((state) => state.updateTabPayload);
   const closeTab          = useTabsStore((state) => state.closeTab);
 
@@ -343,8 +344,8 @@ export function DeckView({ deck }: { deck: Deck }) {
               <Button
                 variant='default'
                 className='gap-1 has-[>svg]:px-2'
-                onClick={() => console.log('Clicked Practice')}
-              >
+              onClick={() => openTab('practice', deck)}
+            >
                 Practice
                 <CirclePlay className='h-5 w-5' strokeWidth={1.5} />
               </Button>
