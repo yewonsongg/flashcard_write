@@ -15,6 +15,11 @@ export interface DeckCard {
   back: string;
   createdAt?: string;     // ISO timestamp (optional for backward compatibility)
   updatedAt?: string;     // ISO timestamp (optional for backward compatibility)
+  stats?: {
+    correctCount: number
+    incorrectCount: number
+    lastPracticedA?: string
+  }
 }
 
 export interface Database {
