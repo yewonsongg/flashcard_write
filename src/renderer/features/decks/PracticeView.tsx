@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useEffect, useState, useMemo } from 'react';
+import { PracticeSession } from './PracticeSession';
+import { useSearchStore } from './useSearchStore';
 import type { Deck, DeckCard } from '@/shared/flashcards/types';
 
 export function PracticeView({ deck }: { deck: Deck }) {
   const [cards, setCards] = useState<DeckCard[]>([]);
-  const [deckTitle, setDeckTitle] = useState(deck.name);
 
-  // loads from the database
+  const searchQuery = useSearchStore((state) => state.getSearchQuery(deck.id));
+  const sortSettings = useSearchStore((state) => state.getSortSettings(deck.id));
+
+  // Load cards from database
   useEffect(() => {
     let cancelled = false;
 
@@ -23,18 +26,12 @@ export function PracticeView({ deck }: { deck: Deck }) {
             .filter((card): card is DeckCard => Boolean(card));
 
           setCards(loadedCards);
-          if (deckInDb) {
-            setDeckTitle(deckInDb.name);
-          } else {
-            setDeckTitle(deck.name);
-          }
           return;
         }
       } catch (error) {
         console.error('Failed to load cards for practice', error);
       }
 
-      setDeckTitle(deck.name);
       setCards(deck.cardIds.map((id) => ({ id, front: '', back: '' })));
     };
 
@@ -47,37 +44,58 @@ export function PracticeView({ deck }: { deck: Deck }) {
       cancelled = true;
       window.removeEventListener('flashcards:database-updated', handler);
     };
-  }, [deck.id, deck.cardIds, deck.name]);
+  }, [deck.id, deck.cardIds]);
 
-  return (
-    <ScrollArea className='h-full overflow-auto'>
-      <div className='flex flex-col gap-4 px-4 py-4'>
-        <div className='flex items-center justify-between gap-2'>
-          <div className='min-w-0'>
-            <div className='text-xs text-muted-foreground'>Practice</div>
-            <div className='truncate text-lg font-semibold text-foreground'>
-              {deckTitle}
-            </div>
-          </div>
-          <div className='shrink-0 text-xs text-muted-foreground'>
-            {cards.length} cards
-          </div>
-        </div>
+  // Filter cards based on search query
+  const filteredCards = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return cards;
+    }
 
-        {cards.length === 0 ? (
-          <div className='text-sm text-muted-foreground'>
-            No cards to practice yet.
-          </div>
-        ) : (
-          <div className='grid gap-3'>
-            {cards.map((card, index) => {
-              return (
-                <div></div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </ScrollArea>
-  );
+    const query = searchQuery.toLowerCase();
+    return cards.filter((card) => {
+      const frontMatch = card.front.toLowerCase().includes(query);
+      const backMatch = card.back.toLowerCase().includes(query);
+      return frontMatch || backMatch;
+    });
+  }, [cards, searchQuery]);
+
+  // Sort filtered cards based on sort settings
+  const sortedAndFilteredCards = useMemo(() => {
+    const toSort = [...filteredCards];
+
+    if (sortSettings.sortMode === 'default') {
+      return toSort;
+    }
+
+    toSort.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortSettings.sortMode) {
+        case 'createdDate':
+          comparison = (a.createdAt || '').localeCompare(b.createdAt || '');
+          break;
+        case 'editedDate':
+          comparison = (a.updatedAt || '').localeCompare(b.updatedAt || '');
+          break;
+        case 'frontText':
+          comparison = a.front.localeCompare(b.front);
+          break;
+        case 'backText':
+          comparison = a.back.localeCompare(b.back);
+          break;
+      }
+
+      return sortSettings.sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return toSort;
+  }, [filteredCards, sortSettings]);
+
+  // Extract valid card IDs from sorted and filtered cards
+  const validCardIds = useMemo(() => {
+    return sortedAndFilteredCards.map((card) => card.id);
+  }, [sortedAndFilteredCards]);
+
+  return <PracticeSession deck={deck} validCardIds={validCardIds} />;
 }
