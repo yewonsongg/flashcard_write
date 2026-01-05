@@ -331,8 +331,39 @@ export function SidebarBody({ isCollapsed, sortMode, sortOrder }: SidebarBodyPro
       <div className='min-w-0 w-full min-h-0 flex-1 flex-col'>
         <SidebarAddButton
           isCollapsed={isCollapsed}
-          onToggle={() => console.log("Add New Deck")}
+          onToggle={() => {
+            console.log("Add New Deck");
+            setCreateOpen(true);
+          }}
         />
+        <AlertDialog
+          open={createOpen}
+          onOpenChange={(open) => {
+            setCreateOpen(open);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Create a New Deck</AlertDialogTitle>
+              <AlertDialogDescription>
+                Title: <Input placeholder="Enter in a title" autoFocus value={deckName} onChange={(e) => setDeckName(e.target.value)} onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    handleCreateDeck();
+                  }
+                }}/>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleCreateDeck}
+              >
+                Create
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     )
   }
