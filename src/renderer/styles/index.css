@@ -48,6 +48,12 @@
 .scrollbar-none::-webkit-scrollbar {
   display: none;                  /* WebKit */
 }
+.scrollbar-hide {
+  scrollbar-width: none;          /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;                  /* WebKit */
+}
 /* Track & thumb */
 .scrollbar::-webkit-scrollbar-track { background: transparent; }
 .scrollbar::-webkit-scrollbar-thumb {

@@ -3,12 +3,27 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { tabRenderers } from "./tabRenderers";
 import { useTabsStore } from "./useTabsStore";
+import { useRef, useEffect } from "react";
 
 export function TabsTriggers() {
   const tabs = useTabsStore((state) => state.tabs);
   const closeTab = useTabsStore((state) => state.closeTab);
   const closeOtherTabs = useTabsStore((state) => state.closeOtherTabs);
   const closeAllTabs = useTabsStore((state) => state.closeAllTabs);
+  const tabsListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const tabsList = tabsListRef.current;
+    if (!tabsList) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      tabsList.scrollLeft += e.deltaY;
+    };
+
+    tabsList.addEventListener('wheel', handleWheel, { passive: false });
+    return () => tabsList.removeEventListener('wheel', handleWheel);
+  }, []);
 
   if (tabs.length === 0) {
     return (
@@ -20,13 +35,14 @@ export function TabsTriggers() {
 
   return (
     <div className='flex items-center h-full w-full gap-2'>
-      <TabsList className='inline-flex h-8 min-h-0 flex-1 min-w-0 gap-1 overflow-x-auto self-end'>
+      <TabsList ref={tabsListRef} className='inline-flex h-8 min-h-0 flex-1 min-w-0 gap-1 self-end overflow-x-auto scrollbar-hide'>
         {tabs.map((tab) => (
           <TabsTrigger 
             key={tab.id}
             value={tab.id}
             className={cn(
-              'flex items-center gap-1 max-w-40 px-2',
+              'flex items-center gap-1 px-2',
+              'max-w-40',
               'rounded-t-md',
               'data-[state=active]:bg-accent/5',
               'data-[state=active]:text-accent-foreground',
@@ -47,7 +63,7 @@ export function TabsTriggers() {
           </TabsTrigger>
         ))}
       </TabsList>
-      <div className='ml-auto shrink-0 px-1 flex items-center gap-2 text-xs text-zinc-500'>
+      <div className='ml-auto shrink-0 px-1 flex items-center align-baseline gap-2 text-xs text-zinc-500'>
         <button
           className='hover:text-zinc-800'
           onClick={() => {
