@@ -13,11 +13,44 @@
     "electron:dev": "electronmon .",
     "electron": "electron .",
     "dev": "npm run build:main && concurrently \"npm run renderer:dev\" \"npm run build:main:watch\" \"wait-on http://localhost:5173 && npm run electron:dev\"",
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder --win"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/soand91/flashcard_write.git"
+    "url": "git+https://github.com/yewonsongg/flashcard_write.git"
+  },
+  "build": {
+    "appId": "com.yewonsongg.studytool",
+    "productName": "Study Tool",
+    "files": [
+      "dist/**",
+      "build/**",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": ["dmg"]
+    },
+    "linux": {
+      "target": ["AppImage"]
+    }
   },
   "keywords": [],
   "author": "",
@@ -78,7 +111,7 @@
     "zustand": "^5.0.9"
   },
   "bugs": {
-    "url": "https://github.com/soand91/flashcard_write/issues"
+    "url": "https://github.com/yewonsongg/flashcard_write/issues"
   },
-  "homepage": "https://github.com/soand91/flashcard_write#readme"
+  "homepage": "https://github.com/yewonsongg/flashcard_write#readme"
 }

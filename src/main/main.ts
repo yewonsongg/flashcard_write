@@ -28,10 +28,11 @@ async function createWindow() {
     await mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    // prod: load built renderer
-    const indexHtml = join(__dirname, '../renderer/index.html');
+    // prod: load built renderer (Vite output)
+    const indexHtml = join(__dirname, '../../dist/renderer/index.html');
     await mainWindow.loadFile(indexHtml);
   }
+
 
   mainWindow.on('closed', () => {
     mainWindow = null;
