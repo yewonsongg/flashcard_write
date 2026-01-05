@@ -12,19 +12,21 @@ interface ActivePracticeProps {
 }
 
 export function ActivePractice({ deck }: ActivePracticeProps) {
-  console.count('active practice render')
   const [userAnswer, setUserAnswer] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [wasCorrect, setWasCorrect] = useState<boolean | null>(null);
-  const [isRetrying, setIsRetrying] = useState(false);
+  const [wasIncorrectOnFirstTry, setWasIncorrectOnFirstTry] = useState(false);
   const [showingFeedback, setShowingFeedback] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const canSkipWithEnter = useRef(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const session = usePracticeStore((state) => state.sessionsByDeckId[deck.id]);
   const progress = usePracticeStore((state) => state.getProgress(deck.id));
   const currentCardId = usePracticeStore((state) => state.getCurrentCardId(deck.id));
   const submitAnswer = usePracticeStore((state) => state.submitAnswer);
+  const markIncorrectWithoutAdvancing = usePracticeStore((state) => state.markIncorrectWithoutAdvancing);
+  const advanceToNextCard = usePracticeStore((state) => state.advanceToNextCard);
   const startMissedRound = usePracticeStore((state) => state.startMissedRound);
   const endSession = usePracticeStore((state) => state.endSession);
 
@@ -48,8 +50,13 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
     setUserAnswer('');
     setIsSubmitted(false);
     setWasCorrect(null);
-    setIsRetrying(false);
+    setWasIncorrectOnFirstTry(false);
     setShowingFeedback(false);
+
+    // Auto-focus the input when card changes
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
   }, [currentCardId]);
 
   // Cleanup timeout on unmount
@@ -64,7 +71,7 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
   // Global Enter key handler for skipping feedback delay
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Allow skipping for both correct AND incorrect feedback (when showing feedback and can skip)
+      // Allow skipping feedback delay when showing feedback
       if (e.key === 'Enter' && showingFeedback && timeoutRef.current && canSkipWithEnter.current) {
         // Skip the delay and immediately move to next card
         clearTimeout(timeoutRef.current);
@@ -73,16 +80,22 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
 
         if (!currentCard || !progress || !session) return;
 
-        // Determine if this is the last card BEFORE submitting
+        // Determine if this is the last card BEFORE advancing
         const isLastCard = progress.current === progress.total;
         const answerContent = currentCard[session.answerSide];
 
-        submitAnswer({
-          deckId: deck.id,
-          cardId: currentCard.id,
-          submitted: userAnswer,
-          correctAnswer: answerContent,
-        });
+        if (wasIncorrectOnFirstTry) {
+          // Was incorrect on first try, successfully retried - just advance without submitting
+          advanceToNextCard(deck.id);
+        } else {
+          // First attempt correct - submit and advance
+          submitAnswer({
+            deckId: deck.id,
+            cardId: currentCard.id,
+            submitted: userAnswer,
+            correctAnswer: answerContent,
+          });
+        }
 
         // Call handleMoveNext indirectly by triggering the same logic
         if (isLastCard) {
@@ -99,7 +112,7 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [showingFeedback, wasCorrect, progress, session, deck.id, currentCard, userAnswer, submitAnswer, startMissedRound]);
+  }, [showingFeedback, wasCorrect, isSubmitted, wasIncorrectOnFirstTry, progress, session, deck.id, currentCard, userAnswer, submitAnswer, advanceToNextCard, startMissedRound]);
 
   if (!session || !currentCard || !progress) {
     return (
@@ -113,20 +126,26 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
   const answerContent = currentCard[session.answerSide];
 
   const handleSubmit = () => {
-    if (!userAnswer.trim() || (isSubmitted && !isRetrying)) return;
+    if (!userAnswer.trim()) return;
 
     // Check the answer locally first (normalize it)
     const normalizedSubmitted = userAnswer.trim().toLowerCase().replace(/\s+/g, ' ');
     const normalizedCorrect = answerContent.trim().toLowerCase().replace(/\s+/g, ' ');
     const isCorrect = normalizedSubmitted === normalizedCorrect;
 
-    // Determine if this is the last card BEFORE submitting (which increments index)
+    // Determine if this is the last card BEFORE advancing
     const isLastCard = progress.current === progress.total;
 
-    if (isRetrying) {
-      // On retry attempt
+    if (wasIncorrectOnFirstTry) {
+      // This is a retry after getting it wrong - only accept correct answers
+      if (!isCorrect) {
+        // Still wrong - do nothing, button stays disabled
+        return;
+      }
+
+      // Retry successful - show feedback and advance WITHOUT incrementing correct counter
       setIsSubmitted(true);
-      setWasCorrect(isCorrect);
+      setWasCorrect(true);
       setShowingFeedback(true);
 
       // Enable Enter key skip after a short delay to prevent immediate triggering
@@ -134,15 +153,11 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
         canSkipWithEnter.current = true;
       }, 100);
 
-      // Wait 2.5 seconds BEFORE submitting to store (which advances the card)
+      // Wait 2.5 seconds BEFORE advancing to next card
       timeoutRef.current = setTimeout(() => {
         canSkipWithEnter.current = false;
-        submitAnswer({
-          deckId: deck.id,
-          cardId: currentCard.id,
-          submitted: userAnswer,
-          correctAnswer: answerContent,
-        });
+        // Advance to next card (card was already marked as incorrect)
+        advanceToNextCard(deck.id);
         handleMoveNext(isLastCard);
       }, 2500);
       return;
@@ -173,9 +188,22 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
         handleMoveNext(isLastCard);
       }, 2500);
     } else {
-      // Incorrect on first try - DON'T submit to store yet, just show retry UI
-      // The card will only be marked wrong if they skip or fail the retry
+      // Incorrect on first try - mark as wrong WITHOUT advancing the card
+      markIncorrectWithoutAdvancing({
+        deckId: deck.id,
+        cardId: currentCard.id,
+      });
+
+      // Mark that this card was incorrect on first try, reset to allow retry
+      setWasIncorrectOnFirstTry(true);
+      setIsSubmitted(false);
+      setUserAnswer('');
       setShowingFeedback(false);
+      
+      // Auto-focus the input for retry
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
     }
   };
 
@@ -201,34 +229,17 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
     // Otherwise the card has already auto-advanced due to index increment in submitAnswer
   };
 
-  const handleRetry = () => {
-    setUserAnswer('');
-    setIsSubmitted(false);
-    setWasCorrect(null);
-    setIsRetrying(true);
-    setShowingFeedback(false);
-  };
-
-  const handleSkip = () => {
-    // Determine if this is the last card BEFORE submitting
-    const isLastCard = progress.current === progress.total;
-
-    // User chose to skip without retrying - submit the wrong answer to store
-    submitAnswer({
-      deckId: deck.id,
-      cardId: currentCard.id,
-      submitted: userAnswer,
-      correctAnswer: answerContent,
-    });
-
-    // Move to next card
-    handleMoveNext(isLastCard);
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !isSubmitted) {
-      // Not submitted yet - submit the answer
-      handleSubmit();
+      // Calculate if answer is correct
+      const normalizedSubmitted = userAnswer.trim().toLowerCase().replace(/\s+/g, ' ');
+      const normalizedCorrect = answerContent.trim().toLowerCase().replace(/\s+/g, ' ');
+      const isCorrect = normalizedSubmitted === normalizedCorrect;
+      
+      // Only allow submission if not in retry mode OR if in retry mode and answer is correct
+      if (!wasIncorrectOnFirstTry || isCorrect) {
+        handleSubmit();
+      }
     }
     // Note: Enter key handling for skipping feedback is done via global keydown listener
   };
@@ -285,6 +296,7 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
                 Your Answer
               </div>
               <Input
+                ref={inputRef}
                 type='text'
                 value={userAnswer}
                 onChange={(e) => setUserAnswer(e.target.value)}
@@ -296,14 +308,14 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
               />
             </div>
 
-            {/* Show result after submission */}
-            {isSubmitted && (
+            {/* Show result after submission or when incorrect on first try */}
+            {(isSubmitted || wasIncorrectOnFirstTry) && (
               <div className='flex flex-col gap-2'>
                 <div className='text-xs font-medium uppercase text-muted-foreground'>
                   Correct Answer
                 </div>
                 <div className='text-lg text-foreground'>{answerContent}</div>
-                {wasCorrect !== null && (
+                {wasCorrect !== null && !wasIncorrectOnFirstTry && (
                   <div className={`flex items-center gap-2 text-sm ${wasCorrect ? 'text-green-600' : 'text-red-600'}`}>
                     {wasCorrect ? (
                       <>
@@ -318,6 +330,12 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
                     )}
                   </div>
                 )}
+                {wasIncorrectOnFirstTry && !showingFeedback && (
+                  <div className='flex items-center gap-2 text-sm text-orange-600'>
+                    <XCircle className='h-4 w-4' />
+                    <span>Type the correct answer to continue</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -325,7 +343,7 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
 
         {/* Controls */}
         <div className='flex w-full max-w-2xl flex-col gap-4'>
-          {!isSubmitted ? (
+          {!isSubmitted && !wasIncorrectOnFirstTry ? (
             <Button
               size='lg'
               onClick={handleSubmit}
@@ -334,25 +352,16 @@ export function ActivePractice({ deck }: ActivePracticeProps) {
             >
               Submit Answer
             </Button>
-          ) : wasCorrect === false && !isRetrying && !showingFeedback ? (
-            // Incorrect on first try - show retry options
-            <div className='flex flex-col gap-3'>
-              <Button
-                size='lg'
-                onClick={handleRetry}
-                className='w-full gap-2'
-              >
-                Try Again
-              </Button>
-              <Button
-                size='lg'
-                variant='outline'
-                onClick={handleSkip}
-                className='w-full gap-2'
-              >
-                Skip to Next Card
-              </Button>
-            </div>
+          ) : wasIncorrectOnFirstTry && !showingFeedback ? (
+            // Retrying after incorrect - button disabled until correct answer is typed
+            <Button
+              size='lg'
+              onClick={handleSubmit}
+              disabled={!userAnswer.trim() || userAnswer.trim().toLowerCase().replace(/\s+/g, ' ') !== answerContent.trim().toLowerCase().replace(/\s+/g, ' ')}
+              className='w-full gap-2'
+            >
+              Submit Answer
+            </Button>
           ) : showingFeedback ? (
             <div className='flex flex-col items-center gap-2 text-sm text-muted-foreground'>
               <span>Moving to next card in 2.5s...</span>

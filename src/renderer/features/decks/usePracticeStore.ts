@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { normalize } from '@/lib/utils';
 
-type PracticePhase = 'all' | 'missed' | 'done';
+type PracticePhase = 'all' | 'missed' | 'summary' | 'done';
 type AnswerSide = 'front' | 'back';
 
 type CardResult = {
@@ -57,7 +57,15 @@ interface PracticeStoreState {
         correctAnswer: string;
     }) => { isCorrect: boolean; normalized: string };
 
+    markIncorrectWithoutAdvancing: (args: {
+        deckId: string;
+        cardId: string;
+    }) => void;
+
+    advanceToNextCard: (deckId: string) => void;
+
     startMissedRound: (deckId: string, shuffle?: boolean) => void;
+    continueFromSummary: (deckId: string, shuffle?: boolean) => void;
     resetSession: (deckId: string, cardIds: string[]) => void;
     endSession: (deckId: string) => void;
 
@@ -120,7 +128,6 @@ export const usePracticeStore = create<PracticeStoreState>((set, get) => ({
     },
 
     startSession: ({ deckId, cardIds, promptSide = 'front', answerSide = 'back', shuffle = true }) => {
-        console.log('start session');
         const queue = shuffle 
             ? [...cardIds].sort(() => Math.random() - 0.5) 
             : [...cardIds];
@@ -149,7 +156,6 @@ export const usePracticeStore = create<PracticeStoreState>((set, get) => ({
     },
 
     submitAnswer: ({ deckId, cardId, submitted, correctAnswer }) => {
-        console.log('submit answer');
         const session = get().sessionsByDeckId[deckId];
         if (!session) return { isCorrect: false, normalized: '' };
 
@@ -157,9 +163,6 @@ export const usePracticeStore = create<PracticeStoreState>((set, get) => ({
         const normalizedCorrectAnswer = normalize(correctAnswer);
         const isCorrect = normalizedSubmitted === normalizedCorrectAnswer;
 
-        console.log('Submitted:', submitted, '-> Normalized:', normalizedSubmitted);
-        console.log('Correct Answer:', correctAnswer, '-> Normalized:', normalizedCorrectAnswer);
-        console.log('Is Correct:', isCorrect);
 
         // creating copies to not mutate existing sessions in-place
         const resultsByCardId = { ...session.resultsByCardId };
@@ -180,9 +183,6 @@ export const usePracticeStore = create<PracticeStoreState>((set, get) => ({
                 missedOrder.push(cardId);
             }
         }
-
-        console.log('Results for card', cardId, ':', resultsByCardId[cardId]);
-        console.log('Missed cards:', missedOrder);
 
         // Only increment index - don't add to missed set here
         const nextIndex = session.index + 1;
@@ -206,8 +206,66 @@ export const usePracticeStore = create<PracticeStoreState>((set, get) => ({
         return { isCorrect, normalized: normalizedSubmitted };
     },
 
+    markIncorrectWithoutAdvancing: ({ deckId, cardId }) => {
+        const session = get().sessionsByDeckId[deckId];
+        if (!session) return;
+
+        // creating copies to not mutate existing sessions in-place
+        const resultsByCardId = { ...session.resultsByCardId };
+        const missedSet = { ...session.missedSet };
+        const missedOrder = [ ...session.missedOrder ];
+
+        // initialize if result entry doesn't already exist
+        const previous = resultsByCardId[cardId] ?? { correct: 0, wrong: 0 };
+
+        // Mark as wrong and add to missed cards
+        resultsByCardId[cardId] = { ...previous, wrong: previous.wrong + 1 };
+
+        // Add to missed set if not already there
+        if (!missedSet[cardId]) {
+            missedSet[cardId] = true;
+            missedOrder.push(cardId);
+        }
+
+        // Update session WITHOUT incrementing index
+        const nextSession: PracticeSession = {
+            ...session,
+            resultsByCardId,
+            missedSet,
+            missedOrder,
+        };
+
+        set((state) => ({
+            ...state,
+            sessionsByDeckId: {
+                ...state.sessionsByDeckId,
+                [deckId]: nextSession,
+            }
+        }));
+    },
+
+    advanceToNextCard: (deckId) => {
+
+        const session = get().sessionsByDeckId[deckId];
+        if (!session) return;
+
+        const nextIndex = session.index + 1;
+
+        const nextSession: PracticeSession = {
+            ...session,
+            index: nextIndex,
+        };
+
+        set((state) => ({
+            ...state,
+            sessionsByDeckId: {
+                ...state.sessionsByDeckId,
+                [deckId]: nextSession,
+            }
+        }));
+    },
+
     startMissedRound: (deckId, shuffle) => {
-        console.log('start missed round');
         const session = get().sessionsByDeckId[deckId];
         if (!session) return;
 
@@ -223,6 +281,21 @@ export const usePracticeStore = create<PracticeStoreState>((set, get) => ({
             return;
         }
 
+        // Show summary instead of immediately starting missed round
+        const summarySession: PracticeSession = { ...session, phase: 'summary' };
+        set((state) => ({
+            ...state,
+            sessionsByDeckId: {
+                ...state.sessionsByDeckId,
+                [deckId]: summarySession
+            }
+        }));
+    },
+
+    continueFromSummary: (deckId, shuffle) => {
+        const session = get().sessionsByDeckId[deckId];
+        if (!session) return;
+
         const queue = shuffle 
             ? [...session.missedOrder].sort(() => Math.random() - 0.5)
             : [...session.missedOrder];
@@ -233,7 +306,8 @@ export const usePracticeStore = create<PracticeStoreState>((set, get) => ({
             queue: queue,
             index: 0,
             missedSet: {},
-            missedOrder: []
+            missedOrder: [],
+            resultsByCardId: {}, // Reset stats for new phase
         };
 
         set((state) => ({
@@ -246,7 +320,6 @@ export const usePracticeStore = create<PracticeStoreState>((set, get) => ({
     },
 
     resetSession: (deckId: string, cardIds: string[]) => {
-        console.log('reset session');
         // clear current session
         set((state) => {
             const nextSessions = { ...state.sessionsByDeckId };
@@ -264,7 +337,6 @@ export const usePracticeStore = create<PracticeStoreState>((set, get) => ({
 
     // chat said that this version is good for a post-session summary screen, a practice again / reset button, and possibly stats so i will keep it like that. i want to be able to practice the set again automatically if i wanted to
     endSession: (deckId: string) => {
-        console.log('end session');
         const session = get().sessionsByDeckId[deckId];
         if(!session) return;
 
@@ -282,7 +354,6 @@ export const usePracticeStore = create<PracticeStoreState>((set, get) => ({
     },
 
     rehydrateSession: ({ deckId, validCardIds }) => {
-        console.log('rehydrate session');
         const session = get().sessionsByDeckId[deckId];
         if (!session) return undefined;
 
